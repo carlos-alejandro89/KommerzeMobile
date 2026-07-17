@@ -8,6 +8,8 @@ import 'package:kommerze_mobile/core/constants/app_constants.dart';
 import 'package:kommerze_mobile/features/profile/presentation/controllers/profile_photo_controller.dart';
 import 'package:kommerze_mobile/features/license/presentation/guards/license_guard.dart';
 import 'package:kommerze_mobile/features/branch_operation/presentation/guards/branch_operation_guard.dart';
+import 'package:kommerze_mobile/features/sales_history/domain/entities/sale_history_item.dart';
+import 'package:kommerze_mobile/features/sales_history/presentation/controllers/sales_history_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum _MenuLayout { list, grid }
@@ -202,6 +204,16 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       await _openSales(licenseAlreadyValidated: true);
       return;
     }
+    if (module.title == 'Compras') {
+      final operationOpen = await BranchOperationGuard.ensureOpen(context, ref);
+      if (!operationOpen || !mounted) return;
+      context.push(AppConstants.purchasesScreenRoute);
+      return;
+    }
+    if (module.title == 'Sync') {
+      context.push(AppConstants.catalogSyncScreenRoute);
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Este módulo estará disponible próximamente.'),
@@ -217,12 +229,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
     }
     final operationOpen = await BranchOperationGuard.ensureOpen(context, ref);
     if (!operationOpen || !mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('El módulo de ventas estará disponible próximamente.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    context.push(AppConstants.salesScreenRoute);
   }
 }
 
@@ -434,11 +441,15 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
-class _SalesCard extends StatelessWidget {
+class _SalesCard extends ConsumerWidget {
   const _SalesCard();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final analytics = ref.watch(dailySalesAnalyticsProvider);
+    final data = analytics.value ?? const DailySalesAnalytics.empty();
+    final variation = data.variationPercentage;
+    final positive = variation >= 0;
     return Container(
       height: 220,
       padding: const EdgeInsets.all(16),
@@ -463,15 +474,15 @@ class _SalesCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Ventas del día', style: _whiteLabel),
-                    SizedBox(height: 3),
+                    const Text('Ventas del día', style: _whiteLabel),
+                    const SizedBox(height: 3),
                     Text(
-                      '\$24,850.00',
-                      style: TextStyle(
+                      _homeMoney(data.todayTotal),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
@@ -519,10 +530,12 @@ class _SalesCard extends StatelessWidget {
                   color: const Color(0xFF00D58A).withValues(alpha: 0.17),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Text(
-                  '↗ 12.5%',
+                child: Text(
+                  '${positive ? '↗' : '↘'} ${variation.abs().toStringAsFixed(1)}%',
                   style: TextStyle(
-                    color: Color(0xFF00E59A),
+                    color: positive
+                        ? const Color(0xFF00E59A)
+                        : const Color(0xFFFFA38F),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -530,7 +543,33 @@ class _SalesCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 5),
-          const Expanded(child: CustomPaint(painter: _SalesChartPainter())),
+          Expanded(
+            child: analytics.isLoading
+                ? const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white70,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  )
+                : CustomPaint(
+                    painter: _SalesChartPainter(data.hourlyTotals),
+                    child: data.todayTotal == 0
+                        ? const Center(
+                            child: Text(
+                              'Sin ventas registradas hoy',
+                              style: TextStyle(
+                                color: Colors.white60,
+                                fontSize: 10.5,
+                              ),
+                            ),
+                          )
+                        : null,
+                  ),
+          ),
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -925,19 +964,20 @@ class _QuickCard extends StatelessWidget {
   }
 }
 
-class _RecentActivity extends StatelessWidget {
+class _RecentActivity extends ConsumerWidget {
   const _RecentActivity();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recent = ref.watch(recentSalesProvider);
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: _whiteCard(radius: 20),
       child: Column(
         children: [
-          const Row(
+          Row(
             children: [
-              Expanded(
+              const Expanded(
                 child: Text(
                   'Actividad reciente',
                   style: TextStyle(
@@ -947,83 +987,154 @@ class _RecentActivity extends StatelessWidget {
                   ),
                 ),
               ),
-              Text(
-                'Ver todas',
-                style: TextStyle(
-                  color: AppColors.primaryBlue,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+              TextButton.icon(
+                onPressed: () =>
+                    context.push(AppConstants.salesHistoryScreenRoute),
+                label: const Text(
+                  'Ver todas',
+                  style: TextStyle(
+                    color: AppColors.primaryBlue,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              SizedBox(width: 4),
-              Icon(
-                Icons.arrow_forward_rounded,
-                color: AppColors.primaryBlue,
-                size: 20,
+                icon: const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: AppColors.primaryBlue,
+                  size: 18,
+                ),
+                iconAlignment: IconAlignment.end,
               ),
             ],
           ),
           const Divider(height: 24),
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0AAA4F),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.swap_horiz_rounded,
-                  color: Colors.white,
-                  size: 28,
-                ),
+          recent.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(12),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            error: (_, _) => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'No fue posible consultar la actividad reciente.',
+                style: TextStyle(color: AppColors.textGrey, fontSize: 11.5),
               ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Traspaso #TRP-00008',
+            ),
+            data: (items) => items.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'Aún no hay ventas registradas.',
                       style: TextStyle(
-                        color: AppColors.navy,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        color: AppColors.textGrey,
+                        fontSize: 11.5,
                       ),
                     ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Sucursal Matriz → Sucursal Norte',
-                      style: TextStyle(color: AppColors.textGrey, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Hace 30 min',
-                    style: TextStyle(color: AppColors.textGrey, fontSize: 10),
+                  )
+                : Column(
+                    children: [
+                      for (var index = 0; index < items.length; index++) ...[
+                        _RecentSaleTile(item: items[index]),
+                        if (index < items.length - 1) const Divider(height: 18),
+                      ],
+                    ],
                   ),
-                  SizedBox(height: 5),
-                  Text(
-                    '\$3,450.00',
-                    style: TextStyle(
-                      color: Color(0xFF0AAA4F),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ],
           ),
         ],
       ),
     );
   }
+}
+
+class _RecentSaleTile extends StatelessWidget {
+  final SaleHistoryItem item;
+  const _RecentSaleTile({required this.item});
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: item.isCredit
+              ? const Color(0xFFFFF1E4)
+              : AppColors.successSoft,
+          borderRadius: BorderRadius.circular(11),
+        ),
+        child: Icon(
+          Icons.shopping_cart_outlined,
+          color: item.isCredit ? const Color(0xFFE66A16) : AppColors.success,
+          size: 22,
+        ),
+      ),
+      const SizedBox(width: 11),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Venta ${item.formattedFolio}',
+              style: const TextStyle(
+                color: AppColors.navy,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              item.clientName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppColors.textGrey, fontSize: 10.5),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(width: 8),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            _recentTime(item.date),
+            style: const TextStyle(color: AppColors.textGrey, fontSize: 9.5),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _recentMoney(item.total),
+            style: TextStyle(
+              color: item.isCredit
+                  ? const Color(0xFFE66A16)
+                  : AppColors.success,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+String _recentTime(DateTime date) {
+  final difference = DateTime.now().difference(date);
+  if (difference.inMinutes < 1) return 'Ahora';
+  if (difference.inMinutes < 60) return 'Hace ${difference.inMinutes} min';
+  if (difference.inHours < 24) return 'Hace ${difference.inHours} h';
+  return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}';
+}
+
+String _recentMoney(double value) => '\$${value.toStringAsFixed(2)}';
+
+String _homeMoney(double value) {
+  final parts = value.toStringAsFixed(2).split('.');
+  final digits = parts.first;
+  final buffer = StringBuffer();
+  for (var index = 0; index < digits.length; index++) {
+    if (index > 0 && (digits.length - index) % 3 == 0) buffer.write(',');
+    buffer.write(digits[index]);
+  }
+  return '\$${buffer.toString()}.${parts.last}';
 }
 
 class _PromoBanner extends StatelessWidget {
@@ -1197,7 +1308,8 @@ class _NavItem extends StatelessWidget {
 }
 
 class _SalesChartPainter extends CustomPainter {
-  const _SalesChartPainter();
+  final List<double> values;
+  const _SalesChartPainter(this.values);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1207,16 +1319,21 @@ class _SalesChartPainter extends CustomPainter {
       ..strokeWidth = 1;
     canvas.drawLine(Offset(0, baseline), Offset(size.width, baseline), grid);
 
+    if (values.isEmpty) return;
+    final maximum = values.fold<double>(
+      0,
+      (max, value) => value > max ? value : max,
+    );
+    final top = size.height * .08;
+    final chartHeight = baseline - top;
     final points = <Offset>[
-      Offset(size.width * .24, size.height * .72),
-      Offset(size.width * .31, size.height * .53),
-      Offset(size.width * .38, size.height * .64),
-      Offset(size.width * .45, size.height * .34),
-      Offset(size.width * .54, size.height * .56),
-      Offset(size.width * .63, size.height * .44),
-      Offset(size.width * .73, size.height * .29),
-      Offset(size.width * .84, size.height * .37),
-      Offset(size.width, size.height * .12),
+      for (var index = 0; index < values.length; index++)
+        Offset(
+          values.length == 1 ? 0 : size.width * index / (values.length - 1),
+          maximum <= 0
+              ? baseline
+              : baseline - (values[index] / maximum) * chartHeight,
+        ),
     ];
     final path = Path()..moveTo(points.first.dx, points.first.dy);
     for (var i = 1; i < points.length; i++) {
@@ -1225,6 +1342,22 @@ class _SalesChartPainter extends CustomPainter {
       final midX = (previous.dx + current.dx) / 2;
       path.cubicTo(midX, previous.dy, midX, current.dy, current.dx, current.dy);
     }
+    final area = Path.from(path)
+      ..lineTo(points.last.dx, baseline)
+      ..lineTo(points.first.dx, baseline)
+      ..close();
+    canvas.drawPath(
+      area,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFF28B8FF).withValues(alpha: .3),
+            const Color(0xFF28B8FF).withValues(alpha: .02),
+          ],
+        ).createShader(Offset.zero & size),
+    );
     canvas.drawPath(
       path,
       Paint()
@@ -1243,7 +1376,11 @@ class _SalesChartPainter extends CustomPainter {
         ..strokeWidth = 4
         ..strokeCap = StrokeCap.round,
     );
-    for (final point in [points.first, points[3], points.last]) {
+    final activePoints = <Offset>[
+      for (var index = 0; index < points.length; index++)
+        if (values[index] > 0) points[index],
+    ];
+    for (final point in activePoints) {
       canvas.drawCircle(point, 5, Paint()..color = const Color(0xFF6EDCFF));
       canvas.drawCircle(
         point,
@@ -1254,7 +1391,13 @@ class _SalesChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _SalesChartPainter oldDelegate) {
+    if (oldDelegate.values.length != values.length) return true;
+    for (var index = 0; index < values.length; index++) {
+      if (oldDelegate.values[index] != values[index]) return true;
+    }
+    return false;
+  }
 }
 
 class _QuickData {
@@ -1297,6 +1440,10 @@ const _moduleItems = [
     Icons.inventory_2_rounded,
     [Color(0xFF1678D3), Color(0xFF0647A8)],
   ),
+  _QuickData('Sync', 'Descarga y actualiza catálogos', Icons.sync_rounded, [
+    Color(0xFF3D67D8),
+    Color(0xFF173B9E),
+  ]),
 ];
 
 BoxDecoration _whiteCard({required double radius}) => BoxDecoration(

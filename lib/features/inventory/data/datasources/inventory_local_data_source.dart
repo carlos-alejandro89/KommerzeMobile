@@ -31,6 +31,40 @@ class InventoryLocalDataSource {
     return rows.map(InventoryItem.fromMap).toList(growable: false);
   }
 
+  Future<List<InventoryItem>> searchItems({
+    String query = '',
+    int limit = 30,
+    int offset = 0,
+  }) async {
+    final db = await database.instance;
+    final normalized = query.trim();
+    final rows = await db.query(
+      'inventario',
+      where: normalized.isEmpty
+          ? null
+          : '''codigo LIKE ? OR codigo_barras LIKE ? OR descripcion LIKE ?
+               OR nombre_linea LIKE ? OR nombre_marca LIKE ?''',
+      whereArgs: normalized.isEmpty ? null : List.filled(5, '%$normalized%'),
+      orderBy: 'descripcion COLLATE NOCASE, codigo COLLATE NOCASE',
+      limit: limit,
+      offset: offset,
+    );
+    return rows.map(InventoryItem.fromMap).toList(growable: false);
+  }
+
+  Future<InventoryItem?> findByBarcode(String barcode) async {
+    final db = await database.instance;
+    final value = barcode.trim();
+    if (value.isEmpty) return null;
+    final rows = await db.query(
+      'inventario',
+      where: 'codigo_barras = ? OR codigo = ?',
+      whereArgs: [value, value],
+      limit: 1,
+    );
+    return rows.isEmpty ? null : InventoryItem.fromMap(rows.first);
+  }
+
   Future<void> saveInitialPrices(List<InventoryItem> items) async {
     final db = await database.instance;
     await db.transaction((transaction) async {

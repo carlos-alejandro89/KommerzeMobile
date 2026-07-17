@@ -494,25 +494,23 @@ class _InventoryCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 9),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Nivel: ${item.packageLevel}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.navySoft,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w600,
+                Row(
+                  children: [
+                    Flexible(
+                      child: _InventoryBadge(
+                        label: 'Nivel: ${item.packageLevel}',
+                        background: AppColors.primaryLight,
+                        foreground: AppColors.navySoft,
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 5),
+                    _InventoryBadge(
+                      label:
+                          'Desc. ${item.discountPercentage.toStringAsFixed(0)}%',
+                      background: AppColors.estatusPendienteFondo,
+                      foreground: AppColors.warning,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -568,6 +566,37 @@ class _InventoryCard extends StatelessWidget {
   static String _quantity(double value) => value == value.roundToDouble()
       ? value.toInt().toString()
       : value.toStringAsFixed(2);
+}
+
+class _InventoryBadge extends StatelessWidget {
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  const _InventoryBadge({
+    required this.label,
+    required this.background,
+    required this.foreground,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+    decoration: BoxDecoration(
+      color: background,
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: foreground,
+        fontSize: 9,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  );
 }
 
 class _EmptyState extends StatelessWidget {

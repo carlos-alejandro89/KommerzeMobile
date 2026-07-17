@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kommerze_mobile/core/storage/app_database.dart';
 import 'package:kommerze_mobile/features/clients/domain/entities/client.dart';
+import 'package:sqflite/sqflite.dart';
 
 class ClientsLocalDataSource {
   final AppDatabase database;
@@ -63,6 +64,52 @@ class ClientsLocalDataSource {
       where: 'guid = ?',
       whereArgs: [guid],
     );
+  }
+
+  Future<void> upsertRemote(
+    List<Client> clients, {
+    required DateTime syncedAt,
+  }) async {
+    final db = await database.instance;
+    await db.transaction((transaction) async {
+      final batch = transaction.batch();
+      for (final client in clients) {
+        batch.insert('clientes', {
+          'guid': client.guid,
+          'nombre': client.name,
+          'rfc': client.rfc,
+          'correo': client.email,
+          'telefono': client.phone,
+          'monto_credito': client.creditAmount,
+          'dias_credito': client.creditDays,
+          'activo': client.isActive ? 1 : 0,
+          'created_at': client.createdAt.toUtc().toIso8601String(),
+          'updated_at': client.updatedAt.toUtc().toIso8601String(),
+          'deleted_at': null,
+          'synced_at': syncedAt.toUtc().toIso8601String(),
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
+  Future<int> synchronizedCount() async {
+    final db = await database.instance;
+    return Sqflite.firstIntValue(
+          await db.rawQuery(
+            'SELECT COUNT(*) FROM clientes WHERE synced_at IS NOT NULL',
+          ),
+        ) ??
+        0;
+  }
+
+  Future<DateTime?> lastSynchronization() async {
+    final db = await database.instance;
+    final rows = await db.rawQuery(
+      'SELECT MAX(synced_at) AS synced_at FROM clientes',
+    );
+    final value = rows.isEmpty ? null : rows.first['synced_at']?.toString();
+    return value == null ? null : DateTime.tryParse(value)?.toLocal();
   }
 
   Map<String, Object?> _draftMap(ClientDraft draft) => {

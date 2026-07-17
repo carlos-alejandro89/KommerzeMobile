@@ -4,7 +4,7 @@ import 'package:sqflite/sqflite.dart';
 
 class AppDatabase {
   static const _databaseName = 'kommerze_mobile.db';
-  static const _databaseVersion = 7;
+  static const _databaseVersion = 16;
 
   Database? _database;
 
@@ -24,6 +24,14 @@ class AppDatabase {
         await _createInventoryTable(database);
         await _createBranchOperationsTable(database);
         await _createClientsTable(database);
+        await _createPaymentFormsTable(database);
+        await _createPaymentMethodsTable(database);
+        await _createProfilesTable(database);
+        await _createOrderTypesTable(database);
+        await _createStatusesTable(database);
+        await _createUsersTable(database);
+        await _createSalesTables(database);
+        await _createSalePaymentsTable(database);
       },
       onUpgrade: _migrate,
     );
@@ -150,9 +158,174 @@ class AppDatabase {
         activo INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
-        deleted_at TEXT
+        deleted_at TEXT,
+        synced_at TEXT
       )
     ''');
+  }
+
+  Future<void> _createPaymentFormsTable(Database database) {
+    return database.execute('''
+      CREATE TABLE formas_pago (
+        guid TEXT PRIMARY KEY,
+        api_id INTEGER NOT NULL,
+        clave TEXT NOT NULL,
+        descripcion TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT,
+        deleted_at TEXT,
+        synced_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createPaymentMethodsTable(Database database) {
+    return database.execute('''
+      CREATE TABLE metodos_pago (
+        guid TEXT PRIMARY KEY,
+        api_id INTEGER NOT NULL,
+        clave TEXT NOT NULL,
+        descripcion TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT,
+        deleted_at TEXT,
+        synced_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createProfilesTable(Database database) {
+    return database.execute('''
+      CREATE TABLE perfiles (
+        guid TEXT PRIMARY KEY,
+        api_id INTEGER NOT NULL,
+        nombre_perfil TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT,
+        deleted_at TEXT,
+        synced_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createOrderTypesTable(Database database) {
+    return database.execute('''
+      CREATE TABLE tipos_pedido (
+        guid TEXT PRIMARY KEY,
+        api_id INTEGER NOT NULL,
+        nombre TEXT NOT NULL,
+        descripcion TEXT NOT NULL,
+        icon TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        deleted_at TEXT,
+        synced_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createStatusesTable(Database database) {
+    return database.execute('''
+      CREATE TABLE estatus (
+        guid TEXT PRIMARY KEY,
+        api_id INTEGER NOT NULL,
+        nombre TEXT NOT NULL,
+        created_at TEXT,
+        updated_at TEXT,
+        deleted_at TEXT,
+        synced_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createUsersTable(Database database) {
+    return database.execute('''
+      CREATE TABLE usuarios (
+        guid TEXT PRIMARY KEY,
+        api_id INTEGER NOT NULL,
+        perfil_id INTEGER NOT NULL,
+        nombre TEXT NOT NULL,
+        telefono TEXT NOT NULL DEFAULT '',
+        correo_electronico TEXT NOT NULL,
+        correo_confirmado INTEGER NOT NULL DEFAULT 0,
+        img_perfil TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        deleted_at TEXT,
+        synced_at TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createSalesTables(Database database) async {
+    await database.execute('''
+      CREATE TABLE pedidos (
+        pedido_guid TEXT PRIMARY KEY,
+        sucursal_origen_guid TEXT NOT NULL,
+        estatus_guid TEXT NOT NULL,
+        cliente_guid TEXT NOT NULL,
+        tipo_pedido_guid TEXT NOT NULL,
+        folio INTEGER NOT NULL,
+        fecha TEXT NOT NULL,
+        es_credito INTEGER NOT NULL DEFAULT 0,
+        sync INTEGER NOT NULL DEFAULT 1,
+        enviado INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (tipo_pedido_guid, folio)
+      )
+    ''');
+    await database.execute('''
+      CREATE TABLE pedido_detalle (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pedido_guid TEXT NOT NULL,
+        nivel_guid TEXT NOT NULL,
+        cantidad REAL NOT NULL,
+        precio_compra REAL NOT NULL DEFAULT 0,
+        precio_venta REAL NOT NULL DEFAULT 0,
+        precio_venta_2 REAL NOT NULL DEFAULT 0,
+        descuento REAL NOT NULL DEFAULT 0,
+        traslado_iva REAL NOT NULL DEFAULT 0,
+        tasa_iva REAL NOT NULL DEFAULT 0,
+        retencion_isr REAL NOT NULL DEFAULT 0,
+        tasa_isr REAL NOT NULL DEFAULT 0,
+        info_adicional TEXT NOT NULL DEFAULT '',
+        FOREIGN KEY (pedido_guid) REFERENCES pedidos(pedido_guid)
+          ON DELETE CASCADE
+      )
+    ''');
+    await database.execute(
+      'CREATE INDEX idx_pedido_detalle_pedido ON pedido_detalle(pedido_guid)',
+    );
+    await database.execute(
+      'CREATE INDEX idx_pedidos_pendientes ON pedidos(enviado, fecha)',
+    );
+  }
+
+  Future<void> _createSalePaymentsTable(Database database) async {
+    await database.execute('''
+      CREATE TABLE pagos_venta (
+        pago_guid TEXT PRIMARY KEY,
+        forma_pago_guid TEXT NOT NULL,
+        pedido_guid TEXT NOT NULL,
+        fecha_pago TEXT NOT NULL,
+        monto REAL NOT NULL,
+        es_credito INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (pedido_guid) REFERENCES pedidos(pedido_guid)
+          ON DELETE CASCADE
+      )
+    ''');
+    await database.execute(
+      'CREATE INDEX idx_pagos_venta_pedido ON pagos_venta(pedido_guid)',
+    );
+    await database.execute(
+      'CREATE INDEX idx_pagos_venta_fecha ON pagos_venta(fecha_pago)',
+    );
+    await database.execute(
+      'CREATE INDEX idx_pagos_venta_forma ON pagos_venta(forma_pago_guid)',
+    );
   }
 
   Future<void> _migrate(
@@ -217,6 +390,33 @@ class AppDatabase {
     }
     if (oldVersion < 7) {
       await _createClientsTable(database);
+    }
+    if (oldVersion < 8) {
+      await _createPaymentFormsTable(database);
+    }
+    if (oldVersion < 9) {
+      await _createProfilesTable(database);
+    }
+    if (oldVersion < 10) {
+      await _createOrderTypesTable(database);
+    }
+    if (oldVersion < 11) {
+      await _createStatusesTable(database);
+    }
+    if (oldVersion < 12) {
+      await database.execute('ALTER TABLE clientes ADD COLUMN synced_at TEXT');
+    }
+    if (oldVersion < 13) {
+      await _createUsersTable(database);
+    }
+    if (oldVersion < 14) {
+      await _createPaymentMethodsTable(database);
+    }
+    if (oldVersion < 15) {
+      await _createSalesTables(database);
+    }
+    if (oldVersion < 16) {
+      await _createSalePaymentsTable(database);
     }
   }
 }

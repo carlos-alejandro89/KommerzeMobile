@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kommerze_mobile/core/network/dio_provider.dart';
+import 'package:kommerze_mobile/core/constants/api_constants.dart';
 import 'package:kommerze_mobile/features/clients/data/models/client_request_dto.dart';
+import 'package:kommerze_mobile/features/clients/data/models/client_response_dto.dart';
 import 'package:kommerze_mobile/features/clients/domain/entities/client.dart';
 import 'package:uuid/uuid.dart';
 
@@ -9,9 +11,44 @@ class ClientsApi {
   final Dio dio;
   const ClientsApi(this.dio);
 
+  Future<List<Client>> listAll() async {
+    try {
+      final response = await dio.get<dynamic>(ApiConstants.clientsListPath);
+      final body = response.data;
+      if (body is! Map) {
+        throw const ClientsApiException(
+          'El servicio devolvió una respuesta inválida.',
+        );
+      }
+      final map = Map<String, dynamic>.from(body);
+      if (map['success'] != true) {
+        throw ClientsApiException(
+          _message(map) ?? 'No fue posible descargar los clientes.',
+        );
+      }
+      final data = map['data'];
+      if (data is! List) {
+        throw const ClientsApiException(
+          'El catálogo de clientes no contiene datos válidos.',
+        );
+      }
+      return data
+          .whereType<Map>()
+          .map(
+            (row) => ClientResponseDto.fromJson(Map<String, dynamic>.from(row)),
+          )
+          .where((client) => client.guid.isNotEmpty && client.name.isNotEmpty)
+          .toList(growable: false);
+    } on DioException catch (error) {
+      throw ClientsApiException(
+        _errorMessage(error, 'No fue posible descargar los clientes.'),
+      );
+    }
+  }
+
   Future<String> create(ClientDraft draft) async {
     final localGuid = const Uuid().v4();
-    final request = ClientRequestDto(guid: localGuid, draft: draft);
+    final request = ClientRequestDto(draft: draft);
     try {
       final response = await dio.post<dynamic>(
         '/clientes/crear',
@@ -27,7 +64,7 @@ class ClientsApi {
   }
 
   Future<void> update(String guid, ClientDraft draft) async {
-    final request = ClientRequestDto(guid: guid, draft: draft);
+    final request = ClientRequestDto(draft: draft);
     try {
       final response = await dio.patch<dynamic>(
         '/clientes/editar/$guid',

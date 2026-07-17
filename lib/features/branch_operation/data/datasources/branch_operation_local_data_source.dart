@@ -20,13 +20,20 @@ class BranchOperationLocalDataSource {
       orderBy: 'fecha_inicio DESC',
       limit: 1,
     );
-    return rows.isEmpty ? null : BranchOperation.fromMap(rows.first);
+    if (rows.isEmpty) return null;
+    final row = rows.first;
+    final financials = await _financialSummary(
+      db,
+      branchId: (row['sucursal_id'] as num).toInt(),
+      start: DateTime.parse(row['fecha_inicio'].toString()),
+    );
+    return BranchOperation.fromMap({...row, ...financials});
   }
 
   Future<double> getInventoryValue() async {
     final db = await database.instance;
     final rows = await db.rawQuery(
-      'SELECT COALESCE(SUM(existencia * precio_compra), 0) AS total '
+      'SELECT COALESCE(SUM(existencia * precio_venta), 0) AS total '
       'FROM inventario',
     );
     return (rows.first['total'] as num?)?.toDouble() ?? 0;
@@ -80,6 +87,20 @@ class BranchOperationLocalDataSource {
   }) async {
     final db = await database.instance;
     final now = DateTime.now().toUtc().toIso8601String();
+    final operations = await db.query(
+      'operaciones_sucursal',
+      where: 'guid = ? AND fecha_fin IS NULL',
+      whereArgs: [operationGuid],
+      limit: 1,
+    );
+    if (operations.isEmpty) return;
+    final operation = operations.first;
+    final financials = await _financialSummary(
+      db,
+      branchId: (operation['sucursal_id'] as num).toInt(),
+      start: DateTime.parse(operation['fecha_inicio'].toString()),
+      end: DateTime.parse(now),
+    );
     await db.update(
       'operaciones_sucursal',
       {
@@ -87,6 +108,7 @@ class BranchOperationLocalDataSource {
         'estatus_id': closedStatus,
         'fecha_fin': now,
         'valor_final_inventario': await getInventoryValue(),
+        ...financials,
         'updated_at': now,
       },
       where: 'guid = ? AND fecha_fin IS NULL',
@@ -94,6 +116,98 @@ class BranchOperationLocalDataSource {
       conflictAlgorithm: ConflictAlgorithm.abort,
     );
   }
+
+  Future<Map<String, Object?>> _financialSummary(
+    Database database, {
+    required int branchId,
+    required DateTime start,
+    DateTime? end,
+  }) async {
+    final startText = start.toUtc().toIso8601String();
+    final endText = end?.toUtc().toIso8601String();
+    final dateCondition = endText == null
+        ? 'p.fecha >= ?'
+        : 'p.fecha >= ? AND p.fecha <= ?';
+    final arguments = <Object?>[branchId, startText, ?endText];
+    final saleRows = await database.rawQuery('''
+      SELECT
+        COALESCE(SUM(
+          CASE WHEN p.tipo_pedido_guid <> 'c82164a9-616c-4148-80fd-c4702d8a7cca'
+            THEN d.cantidad * d.precio_venta * (1 - d.descuento / 100.0)
+            ELSE 0 END
+        ), 0) AS valor_ventas,
+        COALESCE(SUM(
+          CASE WHEN p.tipo_pedido_guid = 'c82164a9-616c-4148-80fd-c4702d8a7cca'
+            THEN d.cantidad * d.precio_compra
+            ELSE 0 END
+        ), 0) AS valor_compras,
+        COALESCE(SUM(
+          CASE WHEN p.tipo_pedido_guid <> 'c82164a9-616c-4148-80fd-c4702d8a7cca'
+            THEN d.cantidad * d.precio_venta * (d.descuento / 100.0)
+            ELSE 0 END
+        ), 0) AS descuentos_aplicados
+      FROM pedidos p
+      INNER JOIN pedido_detalle d ON d.pedido_guid = p.pedido_guid
+      LEFT JOIN estatus e ON e.guid = p.estatus_guid
+      INNER JOIN sucursales s
+        ON s.guid = p.sucursal_origen_guid AND s.id = ?
+      WHERE $dateCondition
+        AND LOWER(COALESCE(e.nombre, '')) <> 'cancelado'
+    ''', arguments);
+
+    final paymentDateCondition = endText == null
+        ? 'pv.fecha_pago >= ?'
+        : 'pv.fecha_pago >= ? AND pv.fecha_pago <= ?';
+    final paymentRows = await database.rawQuery('''
+      SELECT
+        COALESCE(SUM(CASE
+          WHEN pv.es_credito = 0 AND fp.clave = '01' THEN pv.monto ELSE 0
+        END), 0) AS ingreso_efectivo,
+        COALESCE(SUM(CASE
+          WHEN pv.es_credito = 0 AND fp.clave IN ('04', '28', '29')
+            THEN pv.monto ELSE 0
+        END), 0) AS ingreso_tarjetas,
+        COALESCE(SUM(CASE
+          WHEN pv.es_credito = 0 AND fp.clave = '02' THEN pv.monto ELSE 0
+        END), 0) AS ingreso_cheques,
+        COALESCE(SUM(CASE
+          WHEN pv.es_credito = 0 AND fp.clave = '03' THEN pv.monto ELSE 0
+        END), 0) AS ingreso_transferencia,
+        COALESCE(SUM(CASE
+          WHEN pv.es_credito = 0
+            AND fp.clave NOT IN ('01', '02', '03', '04', '28', '29')
+            THEN pv.monto ELSE 0
+        END), 0) AS ingreso_otros,
+        COALESCE(SUM(CASE
+          WHEN pv.es_credito = 1 THEN pv.monto ELSE 0
+        END), 0) AS creditos
+      FROM pagos_venta pv
+      INNER JOIN pedidos p ON p.pedido_guid = pv.pedido_guid
+      INNER JOIN formas_pago fp ON fp.guid = pv.forma_pago_guid
+      LEFT JOIN estatus e ON e.guid = p.estatus_guid
+      INNER JOIN sucursales s
+        ON s.guid = p.sucursal_origen_guid AND s.id = ?
+      WHERE $paymentDateCondition
+        AND LOWER(COALESCE(e.nombre, '')) <> 'cancelado'
+    ''', arguments);
+
+    final sales = saleRows.first;
+    final payments = paymentRows.first;
+    return {
+      'valor_ventas': _decimal(sales['valor_ventas']),
+      'valor_compras': _decimal(sales['valor_compras']),
+      'descuentos_aplicados': _decimal(sales['descuentos_aplicados']),
+      'ingreso_efectivo': _decimal(payments['ingreso_efectivo']),
+      'ingreso_tarjetas': _decimal(payments['ingreso_tarjetas']),
+      'ingreso_cheques': _decimal(payments['ingreso_cheques']),
+      'ingreso_transferencia': _decimal(payments['ingreso_transferencia']),
+      'ingreso_otros': _decimal(payments['ingreso_otros']),
+      'creditos': _decimal(payments['creditos']),
+    };
+  }
+
+  double _decimal(Object? value) =>
+      value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
 }
 
 class BranchOperationException implements Exception {

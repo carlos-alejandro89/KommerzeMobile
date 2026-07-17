@@ -42,7 +42,7 @@ class InventoryItem {
       barcode: map['codigo_barras']?.toString() ?? '',
       purchasePrice: _number(map['precio_compra']),
       salePrice: _number(map['precio_venta']),
-      discountPercentage: _number(map['porcentaje_descuento']),
+      discountPercentage: _percentage(map['porcentaje_descuento']),
       stock: _number(map['existencia']),
       lineName: map['nombre_linea']?.toString() ?? 'SIN LINEA',
       brandName: map['nombre_marca']?.toString() ?? 'SIN MARCA',
@@ -54,4 +54,10 @@ class InventoryItem {
 
   static double _number(Object? value) =>
       value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+
+  static double _percentage(Object? value) {
+    final percentage = _number(value);
+    if (!percentage.isFinite || percentage < 0 || percentage > 100) return 0;
+    return percentage;
+  }
 }

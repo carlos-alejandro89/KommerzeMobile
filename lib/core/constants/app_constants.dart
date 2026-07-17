@@ -10,4 +10,11 @@ class AppConstants {
   static const branchOperationScreenRoute = '/branch-operation';
   static const clientsScreenRoute = '/clients';
   static const clientFormScreenRoute = '/clients/form';
+  static const salesScreenRoute = '/sales';
+  static const purchasesScreenRoute = '/purchases';
+  static const checkoutScreenRoute = '/sales/checkout';
+  static const checkoutClientScreenRoute = '/sales/checkout/client';
+  static const catalogSyncScreenRoute = '/catalog-sync';
+  static const salesHistoryScreenRoute = '/sales-history';
+  static const saleDetailScreenRoute = '/sales-history/:orderGuid';
 }

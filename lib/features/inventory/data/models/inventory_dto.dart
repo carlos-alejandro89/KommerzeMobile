@@ -22,7 +22,7 @@ class InventoryDto {
       barcode: _text(json['codigoBarras']),
       purchasePrice: _decimal(json['precioCompra']),
       salePrice: _decimal(json['precioVenta']),
-      discountPercentage: _decimal(json['porcentajeDescuento']),
+      discountPercentage: _percentage(json['porcentajeDescuento']),
       stock: initialStock,
       lineName: _text(json['nombreLinea'], fallback: 'SIN LINEA'),
       brandName: _text(json['nombreMarca'], fallback: 'SIN MARCA'),
@@ -39,4 +39,10 @@ class InventoryDto {
 
   static double _decimal(Object? value) =>
       value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+
+  static double _percentage(Object? value) {
+    final percentage = _decimal(value);
+    if (!percentage.isFinite || percentage < 0 || percentage > 100) return 0;
+    return percentage;
+  }
 }
