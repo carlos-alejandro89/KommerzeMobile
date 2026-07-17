@@ -88,10 +88,10 @@ class InventoryLocalDataSource {
         batch.rawInsert('''
           INSERT INTO inventario (
             nivel_guid, producto_guid, empaque_guid, codigo, descripcion,
-            nivel_empaque, codigo_barras, precio_compra, precio_venta,
+            nivel_empaque, codigo_barras, img_referencia, precio_compra, precio_venta,
             porcentaje_descuento, existencia, nombre_linea, nombre_marca,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
           ON CONFLICT(nivel_guid) DO UPDATE SET
             producto_guid = excluded.producto_guid,
             empaque_guid = excluded.empaque_guid,
@@ -99,6 +99,7 @@ class InventoryLocalDataSource {
             descripcion = excluded.descripcion,
             nivel_empaque = excluded.nivel_empaque,
             codigo_barras = excluded.codigo_barras,
+            img_referencia = excluded.img_referencia,
             precio_compra = excluded.precio_compra,
             precio_venta = excluded.precio_venta,
             porcentaje_descuento = excluded.porcentaje_descuento,
@@ -120,12 +121,13 @@ class InventoryLocalDataSource {
           '''
           INSERT INTO inventario (
             nivel_guid, producto_guid, empaque_guid, codigo, descripcion,
-            nivel_empaque, codigo_barras, precio_compra, precio_venta,
+            nivel_empaque, codigo_barras, img_referencia, precio_compra, precio_venta,
             porcentaje_descuento, existencia, nombre_linea, nombre_marca,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(nivel_guid) DO UPDATE SET
             existencia = excluded.existencia,
+            img_referencia = excluded.img_referencia,
             updated_at = excluded.updated_at
         ''',
           [..._values(item, includeStock: true)],
@@ -144,6 +146,7 @@ class InventoryLocalDataSource {
       'descripcion': item.description,
       'nivel_empaque': item.packageLevel,
       'codigo_barras': item.barcode,
+      'img_referencia': item.imagePath,
       'precio_compra': item.purchasePrice,
       'precio_venta': item.salePrice,
       'porcentaje_descuento': item.discountPercentage,
@@ -163,6 +166,7 @@ class InventoryLocalDataSource {
       item.description,
       item.packageLevel,
       item.barcode,
+      item.imagePath,
       item.purchasePrice,
       item.salePrice,
       item.discountPercentage,

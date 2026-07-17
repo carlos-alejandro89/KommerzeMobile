@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
 import 'package:kommerze_mobile/core/widgets/app_header.dart';
+import 'package:kommerze_mobile/core/widgets/product_image.dart';
 import 'package:kommerze_mobile/features/inventory/domain/entities/inventory_item.dart';
 import 'package:kommerze_mobile/features/purchases/presentation/controllers/purchases_controller.dart';
 import 'package:kommerze_mobile/features/sales/presentation/controllers/sales_controller.dart';
@@ -296,10 +297,9 @@ class _ProductCard extends StatelessWidget {
                 color: const Color(0xFFF1F6FF),
                 borderRadius: BorderRadius.circular(11),
               ),
-              child: const Icon(
-                Icons.inventory_2_outlined,
-                color: AppColors.primaryBlue,
-                size: 27,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: ProductImage(imagePath: product.imagePath, iconSize: 27),
               ),
             ),
             const SizedBox(width: 13),

@@ -20,6 +20,7 @@ class InventoryDto {
       description: json['descripcion']?.toString(),
       packageLevel: _text(json['nivelEmpaque'] ?? json['nombreEmpaque']),
       barcode: _text(json['codigoBarras']),
+      imagePath: _text(json['imgReferencia']),
       purchasePrice: _decimal(json['precioCompra']),
       salePrice: _decimal(json['precioVenta']),
       discountPercentage: _percentage(json['porcentajeDescuento']),

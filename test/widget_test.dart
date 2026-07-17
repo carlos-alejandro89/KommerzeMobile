@@ -6,6 +6,7 @@ import 'package:kommerze_mobile/core/storage/shared_prefs_provider.dart';
 import 'package:kommerze_mobile/core/device/device_identity_service.dart';
 import 'package:kommerze_mobile/features/welcome/presentation/screens/welcome_screen.dart';
 import 'package:kommerze_mobile/features/profile/presentation/screens/profile_screen.dart';
+import 'package:kommerze_mobile/features/profile/presentation/controllers/profile_photo_controller.dart';
 import 'package:kommerze_mobile/features/auth/data/models/usuario_dto.dart';
 import 'package:kommerze_mobile/features/license/data/models/license_activation_request_dto.dart';
 import 'package:kommerze_mobile/features/license/presentation/screens/license_screen.dart';
@@ -369,6 +370,8 @@ void main() {
   test('mapea una operación de sucursal activa', () {
     final operation = BranchOperation.fromMap({
       'usuario_apertura_id': 1,
+      'usuario_apertura_guid': 'user-opening-guid',
+      'usuario_apertura_nombre': 'Usuario de apertura',
       'sucursal_id': 8,
       'estatus_id': 1,
       'fecha_inicio': '2026-07-15T14:45:00Z',
@@ -381,12 +384,26 @@ void main() {
     expect(operation.endDate, isNull);
     expect(operation.initialInventoryValue, 623278.93);
     expect(operation.initialCashAmount, 500);
+    expect(operation.openingUserGuid, 'user-opening-guid');
+    expect(operation.openingUserName, 'Usuario de apertura');
+  });
+
+  test('separa la fotografía de perfil por usuario', () {
+    expect(
+      profilePhotoPreferenceKeyFor('USER-A'),
+      'profile_photo_base64_user-a',
+    );
+    expect(
+      profilePhotoPreferenceKeyFor('USER-A'),
+      isNot(profilePhotoPreferenceKeyFor('USER-B')),
+    );
   });
 
   test('inicializa precios sin existencia y recupera el respaldo', () {
     final price = InventoryDto.fromPrice({
       'codigo': '31211509',
       'nivelEmpaque': 'LITRO',
+      'imgReferencia': '/uploads/productos/31211509.png',
       'precioCompra': 150,
       'precioVenta': 210,
       'porcentajeDescuento': 8,
@@ -406,6 +423,7 @@ void main() {
     expect(price.stock, 0);
     expect(price.purchasePrice, 150);
     expect(price.discountPercentage, 8);
+    expect(price.imagePath, '/uploads/productos/31211509.png');
     expect(backup.stock, 33);
     expect(price.levelGuid, backup.levelGuid);
   });

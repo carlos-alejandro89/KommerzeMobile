@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
 import 'package:kommerze_mobile/core/widgets/app_header.dart';
+import 'package:kommerze_mobile/core/widgets/product_image.dart';
 import 'package:kommerze_mobile/features/sales_history/data/services/sale_receipt_pdf_service.dart';
 import 'package:kommerze_mobile/features/sales_history/domain/entities/sale_detail.dart';
 import 'package:kommerze_mobile/features/sales_history/presentation/controllers/sales_history_controller.dart';
@@ -395,10 +396,9 @@ class _ItemTile extends StatelessWidget {
           color: AppColors.primarySurface,
           borderRadius: BorderRadius.circular(9),
         ),
-        child: const Icon(
-          Icons.inventory_2_outlined,
-          color: AppColors.primaryBlue,
-          size: 19,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: ProductImage(imagePath: item.imagePath, iconSize: 19),
         ),
       ),
       const SizedBox(width: 10),

@@ -4,7 +4,7 @@ import 'package:sqflite/sqflite.dart';
 
 class AppDatabase {
   static const _databaseName = 'kommerze_mobile.db';
-  static const _databaseVersion = 16;
+  static const _databaseVersion = 18;
 
   Database? _database;
 
@@ -94,6 +94,7 @@ class AppDatabase {
         descripcion TEXT,
         nivel_empaque TEXT NOT NULL,
         codigo_barras TEXT NOT NULL DEFAULT '',
+        img_referencia TEXT NOT NULL DEFAULT '',
         precio_compra REAL NOT NULL DEFAULT 0,
         precio_venta REAL NOT NULL DEFAULT 0,
         porcentaje_descuento REAL NOT NULL DEFAULT 0,
@@ -110,6 +111,8 @@ class AppDatabase {
       CREATE TABLE operaciones_sucursal (
         guid TEXT PRIMARY KEY,
         usuario_apertura_id INTEGER NOT NULL,
+        usuario_apertura_guid TEXT,
+        usuario_apertura_nombre TEXT,
         usuario_cierre_id INTEGER,
         sucursal_id INTEGER NOT NULL,
         estatus_id INTEGER NOT NULL,
@@ -418,6 +421,39 @@ class AppDatabase {
     if (oldVersion < 16) {
       await _createSalePaymentsTable(database);
     }
+    if (oldVersion < 17) {
+      await _addColumnIfMissing(
+        database,
+        table: 'inventario',
+        column: 'img_referencia',
+        definition: "TEXT NOT NULL DEFAULT ''",
+      );
+    }
+    if (oldVersion < 18) {
+      await _addColumnIfMissing(
+        database,
+        table: 'operaciones_sucursal',
+        column: 'usuario_apertura_guid',
+        definition: 'TEXT',
+      );
+      await _addColumnIfMissing(
+        database,
+        table: 'operaciones_sucursal',
+        column: 'usuario_apertura_nombre',
+        definition: 'TEXT',
+      );
+    }
+  }
+
+  Future<void> _addColumnIfMissing(
+    Database database, {
+    required String table,
+    required String column,
+    required String definition,
+  }) async {
+    final columns = await database.rawQuery('PRAGMA table_info($table)');
+    if (columns.any((row) => row['name'] == column)) return;
+    await database.execute('ALTER TABLE $table ADD COLUMN $column $definition');
   }
 }
 

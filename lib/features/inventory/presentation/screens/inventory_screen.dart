@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
 import 'package:kommerze_mobile/core/widgets/app_header.dart';
+import 'package:kommerze_mobile/core/widgets/product_image.dart';
 import 'package:kommerze_mobile/features/inventory/domain/entities/inventory_item.dart';
 import 'package:kommerze_mobile/features/inventory/presentation/controllers/inventory_controller.dart';
 
@@ -458,10 +459,9 @@ class _InventoryCard extends StatelessWidget {
                 color: AppColors.primaryLight.withValues(alpha: .9),
               ),
             ),
-            child: const Icon(
-              Icons.inventory_2_outlined,
-              color: AppColors.primaryBlue,
-              size: 34,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: ProductImage(imagePath: item.imagePath, iconSize: 34),
             ),
           ),
           const SizedBox(width: 12),

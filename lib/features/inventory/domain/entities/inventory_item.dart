@@ -3,6 +3,7 @@ class InventoryItem {
   final String? description;
   final String packageLevel;
   final String barcode;
+  final String imagePath;
   final double purchasePrice;
   final double salePrice;
   final double discountPercentage;
@@ -18,6 +19,7 @@ class InventoryItem {
     required this.description,
     required this.packageLevel,
     required this.barcode,
+    this.imagePath = '',
     required this.purchasePrice,
     required this.salePrice,
     required this.discountPercentage,
@@ -40,6 +42,7 @@ class InventoryItem {
       description: map['descripcion']?.toString(),
       packageLevel: map['nivel_empaque']?.toString() ?? '',
       barcode: map['codigo_barras']?.toString() ?? '',
+      imagePath: map['img_referencia']?.toString() ?? '',
       purchasePrice: _number(map['precio_compra']),
       salePrice: _number(map['precio_venta']),
       discountPercentage: _percentage(map['porcentaje_descuento']),

@@ -91,7 +91,8 @@ class SalesHistoryLocalDataSource {
         d.nivel_guid, d.cantidad, d.precio_venta, d.descuento,
         COALESCE(i.codigo, '') AS codigo,
         COALESCE(i.descripcion, d.info_adicional, 'Artículo') AS nombre,
-        COALESCE(i.codigo_barras, '') AS codigo_barras
+        COALESCE(i.codigo_barras, '') AS codigo_barras,
+        COALESCE(i.img_referencia, '') AS img_referencia
       FROM pedido_detalle d
       LEFT JOIN inventario i ON i.nivel_guid = d.nivel_guid
       WHERE d.pedido_guid = ?
@@ -131,6 +132,7 @@ class SalesHistoryLocalDataSource {
               code: row['codigo']?.toString() ?? '',
               name: row['nombre']?.toString() ?? '',
               barcode: row['codigo_barras']?.toString() ?? '',
+              imagePath: row['img_referencia']?.toString() ?? '',
               quantity: _decimal(row['cantidad']),
               unitPrice: _decimal(row['precio_venta']),
               discountPercentage: _decimal(row['descuento']),

@@ -3,6 +3,7 @@ class SaleDetailItem {
   final String code;
   final String name;
   final String barcode;
+  final String imagePath;
   final double quantity;
   final double unitPrice;
   final double discountPercentage;
@@ -12,6 +13,7 @@ class SaleDetailItem {
     required this.code,
     required this.name,
     required this.barcode,
+    this.imagePath = '',
     required this.quantity,
     required this.unitPrice,
     required this.discountPercentage,

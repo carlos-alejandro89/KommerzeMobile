@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
+import 'package:kommerze_mobile/core/widgets/product_image.dart';
 import 'package:kommerze_mobile/features/inventory/domain/entities/inventory_item.dart';
 
 class ProductSelectionSheet extends StatefulWidget {
@@ -168,10 +169,12 @@ class _ProductSelectionSheetState extends State<ProductSelectionSheet> {
                           color: AppColors.primarySurface,
                           borderRadius: BorderRadius.circular(18),
                         ),
-                        child: const Icon(
-                          Icons.inventory_2_outlined,
-                          color: AppColors.primaryBlue,
-                          size: 92,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(17),
+                          child: ProductImage(
+                            imagePath: product.imagePath,
+                            iconSize: 92,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 17),

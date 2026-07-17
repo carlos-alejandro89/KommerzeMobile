@@ -36,6 +36,14 @@ class _BranchOperationScreenState extends ConsumerState<BranchOperationScreen> {
     final user = ref.watch(authControllerProvider).value;
     final profilePhoto = ref.watch(profilePhotoControllerProvider).value;
     final isOpen = state.value?.isOpen ?? false;
+    final activeOperation = state.value?.activeOperation;
+    final openingUserPhoto = activeOperation == null
+        ? null
+        : ref
+              .watch(
+                profilePhotoForUserProvider(activeOperation.openingUserGuid),
+              )
+              .value;
     final inventoryValue = state.value?.currentInventoryValue ?? 0;
 
     return Scaffold(
@@ -51,7 +59,11 @@ class _BranchOperationScreenState extends ConsumerState<BranchOperationScreen> {
             showBackButton: true,
             onBack: context.pop,
             content: isOpen
-                ? const _ClosingTimeHeader()
+                ? _ClosingTimeHeader(
+                    openingUserName:
+                        activeOperation?.openingUserName ?? 'Usuario',
+                    photoBytes: openingUserPhoto,
+                  )
                 : _InventoryValueHeader(
                     value: inventoryValue,
                     subtitle: 'Valor del inventario al momento',
@@ -65,7 +77,7 @@ class _BranchOperationScreenState extends ConsumerState<BranchOperationScreen> {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 620),
                     child: value.isOpen
-                        ? _closingContent(value, user?.name ?? 'Usuario')
+                        ? _closingContent(value)
                         : _openingContent(
                             value,
                             user?.name ?? 'Usuario',
@@ -206,13 +218,13 @@ class _BranchOperationScreenState extends ConsumerState<BranchOperationScreen> {
     );
   }
 
-  Widget _closingContent(BranchOperationState state, String userName) {
+  Widget _closingContent(BranchOperationState state) {
     final operation = state.activeOperation!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Jornada iniciada ${_dateTime(operation.startDate)} por $userName',
+          'Jornada iniciada ${_dateTime(operation.startDate)} por ${operation.openingUserName}',
           style: const TextStyle(color: AppColors.textGrey, fontSize: 11.5),
         ),
         const SizedBox(height: 10),
@@ -354,7 +366,13 @@ class _BranchOperationScreenState extends ConsumerState<BranchOperationScreen> {
 }
 
 class _ClosingTimeHeader extends StatelessWidget {
-  const _ClosingTimeHeader();
+  final String openingUserName;
+  final Uint8List? photoBytes;
+
+  const _ClosingTimeHeader({
+    required this.openingUserName,
+    required this.photoBytes,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -414,14 +432,45 @@ class _ClosingTimeHeader extends StatelessWidget {
                   '$hour:${two(now.minute)} $period',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
+                ),
+                const SizedBox(height: 5),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 10,
+                      backgroundColor: Colors.white,
+                      backgroundImage: photoBytes == null
+                          ? null
+                          : MemoryImage(photoBytes!),
+                      child: photoBytes == null
+                          ? const Icon(
+                              Icons.person_rounded,
+                              color: AppColors.primaryBlue,
+                              size: 13,
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Apertura: $openingUserName',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          const Icon(Icons.schedule_rounded, color: Colors.white70, size: 19),
         ],
       ),
     );

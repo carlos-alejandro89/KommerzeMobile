@@ -13,12 +13,23 @@ class BranchOperationLocalDataSource {
 
   Future<BranchOperation?> getActive() async {
     final db = await database.instance;
-    final rows = await db.query(
-      'operaciones_sucursal',
-      where: 'estatus_id = ? AND fecha_fin IS NULL AND deleted_at IS NULL',
-      whereArgs: const [activeStatus],
-      orderBy: 'fecha_inicio DESC',
-      limit: 1,
+    final rows = await db.rawQuery(
+      '''
+      SELECT
+        o.*,
+        COALESCE(o.usuario_apertura_guid, u.guid, '')
+          AS usuario_apertura_guid,
+        COALESCE(o.usuario_apertura_nombre, u.nombre, 'Usuario')
+          AS usuario_apertura_nombre
+      FROM operaciones_sucursal o
+      LEFT JOIN usuarios u ON u.api_id = o.usuario_apertura_id
+      WHERE o.estatus_id = ?
+        AND o.fecha_fin IS NULL
+        AND o.deleted_at IS NULL
+      ORDER BY o.fecha_inicio DESC
+      LIMIT 1
+      ''',
+      const [activeStatus],
     );
     if (rows.isEmpty) return null;
     final row = rows.first;
@@ -52,6 +63,8 @@ class BranchOperationLocalDataSource {
 
   Future<BranchOperation> open({
     required int userId,
+    required String userGuid,
+    required String userName,
     required double initialCashAmount,
     required String? notes,
   }) async {
@@ -63,6 +76,8 @@ class BranchOperationLocalDataSource {
     await db.insert('operaciones_sucursal', {
       'guid': guid,
       'usuario_apertura_id': userId,
+      'usuario_apertura_guid': userGuid,
+      'usuario_apertura_nombre': userName,
       'sucursal_id': await getBranchId(),
       'estatus_id': activeStatus,
       'fecha_inicio': now,

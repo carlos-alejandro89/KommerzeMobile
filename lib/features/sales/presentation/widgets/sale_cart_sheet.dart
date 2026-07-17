@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
 import 'package:kommerze_mobile/core/constants/app_constants.dart';
+import 'package:kommerze_mobile/core/widgets/product_image.dart';
 import 'package:kommerze_mobile/features/branch_operation/presentation/controllers/branch_operation_controller.dart';
 import 'package:kommerze_mobile/features/inventory/presentation/controllers/inventory_controller.dart';
 import 'package:kommerze_mobile/features/purchases/presentation/controllers/purchases_controller.dart';
@@ -107,128 +108,224 @@ class SaleCartSheet extends ConsumerWidget {
                       separatorBuilder: (_, _) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final item = items[index];
+                        void updateQuantity(double quantity) {
+                          if (purchaseMode) {
+                            ref
+                                .read(purchaseCartControllerProvider.notifier)
+                                .updateQuantity(
+                                  item.product.levelGuid,
+                                  quantity,
+                                );
+                          } else {
+                            ref
+                                .read(saleCartControllerProvider.notifier)
+                                .updateQuantity(
+                                  item.product.levelGuid,
+                                  quantity,
+                                );
+                          }
+                        }
+
+                        void removeItem() {
+                          if (purchaseMode) {
+                            ref
+                                .read(purchaseCartControllerProvider.notifier)
+                                .remove(item.product.levelGuid);
+                          } else {
+                            ref
+                                .read(saleCartControllerProvider.notifier)
+                                .remove(item.product.levelGuid);
+                          }
+                        }
+
+                        final lineTotal = purchaseMode
+                            ? item.subtotal
+                            : item.total;
                         return Container(
-                          padding: const EdgeInsets.all(13),
+                          padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: const Color(0xFFE7ECF5)),
                           ),
-                          child: Row(
+                          child: Column(
                             children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item.product.displayName,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: AppColors.navy,
-                                        fontSize: 13.5,
-                                        fontWeight: FontWeight.w600,
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: 58,
+                                    height: 64,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(11),
+                                      border: Border.all(
+                                        color: AppColors.borderGrey,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${_number(item.quantity)} × \$${item.unitPrice.toStringAsFixed(2)}',
-                                      style: const TextStyle(
-                                        color: AppColors.textGrey,
-                                        fontSize: 12,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: ProductImage(
+                                        imagePath: item.product.imagePath,
+                                        iconSize: 24,
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () => purchaseMode
-                                    ? ref
-                                          .read(
-                                            purchaseCartControllerProvider
-                                                .notifier,
-                                          )
-                                          .updateQuantity(
-                                            item.product.levelGuid,
-                                            item.quantity - 1,
-                                          )
-                                    : ref
-                                          .read(
-                                            saleCartControllerProvider.notifier,
-                                          )
-                                          .updateQuantity(
-                                            item.product.levelGuid,
-                                            item.quantity - 1,
-                                          ),
-                                icon: const Icon(
-                                  Icons.remove_circle_outline_rounded,
-                                  size: 21,
-                                ),
-                              ),
-                              Text(
-                                _number(item.quantity),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              IconButton(
-                                onPressed:
-                                    purchaseMode ||
-                                        item.quantity < item.product.stock
-                                    ? () => purchaseMode
-                                          ? ref
-                                                .read(
-                                                  purchaseCartControllerProvider
-                                                      .notifier,
-                                                )
-                                                .updateQuantity(
-                                                  item.product.levelGuid,
-                                                  item.quantity + 1,
-                                                )
-                                          : ref
-                                                .read(
-                                                  saleCartControllerProvider
-                                                      .notifier,
-                                                )
-                                                .updateQuantity(
-                                                  item.product.levelGuid,
-                                                  item.quantity + 1,
-                                                )
-                                    : null,
-                                icon: const Icon(
-                                  Icons.add_circle_outline_rounded,
-                                  size: 21,
-                                ),
-                              ),
-                              SizedBox(
-                                width: 70,
-                                child: Text(
-                                  '\$${(purchaseMode ? item.subtotal : item.total).toStringAsFixed(2)}',
-                                  textAlign: TextAlign.end,
-                                  style: const TextStyle(
-                                    color: AppColors.navy,
-                                    fontWeight: FontWeight.w700,
                                   ),
-                                ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.product.displayName,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: AppColors.navy,
+                                            fontSize: 14,
+                                            height: 1.2,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          item.product.code,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: AppColors.textGrey,
+                                            fontSize: 10.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          'Precio unitario  ·  \$${item.unitPrice.toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            color: AppColors.primaryBlue,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Eliminar artículo',
+                                    onPressed: removeItem,
+                                    constraints: const BoxConstraints.tightFor(
+                                      width: 34,
+                                      height: 34,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: AppColors.errorSoft,
+                                    ),
+                                    icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                      size: 18,
+                                      color: AppColors.error,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              IconButton(
-                                onPressed: () => purchaseMode
-                                    ? ref
-                                          .read(
-                                            purchaseCartControllerProvider
-                                                .notifier,
-                                          )
-                                          .remove(item.product.levelGuid)
-                                    : ref
-                                          .read(
-                                            saleCartControllerProvider.notifier,
-                                          )
-                                          .remove(item.product.levelGuid),
-                                icon: const Icon(
-                                  Icons.close_rounded,
-                                  size: 18,
-                                  color: AppColors.textGrey,
-                                ),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 11),
+                                child: Divider(height: 1),
+                              ),
+                              Row(
+                                children: [
+                                  const Text(
+                                    'Cantidad',
+                                    style: TextStyle(
+                                      color: AppColors.textGrey,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 9),
+                                  Container(
+                                    height: 38,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primarySurface,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        IconButton(
+                                          onPressed: () =>
+                                              updateQuantity(item.quantity - 1),
+                                          constraints:
+                                              const BoxConstraints.tightFor(
+                                                width: 32,
+                                                height: 32,
+                                              ),
+                                          padding: EdgeInsets.zero,
+                                          icon: const Icon(
+                                            Icons.remove_rounded,
+                                            size: 18,
+                                          ),
+                                        ),
+                                        SizedBox(
+                                          width: 34,
+                                          child: Text(
+                                            _number(item.quantity),
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              color: AppColors.navy,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          onPressed:
+                                              purchaseMode ||
+                                                  item.quantity <
+                                                      item.product.stock
+                                              ? () => updateQuantity(
+                                                  item.quantity + 1,
+                                                )
+                                              : null,
+                                          constraints:
+                                              const BoxConstraints.tightFor(
+                                                width: 32,
+                                                height: 32,
+                                              ),
+                                          padding: EdgeInsets.zero,
+                                          icon: const Icon(
+                                            Icons.add_rounded,
+                                            size: 18,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      const Text(
+                                        'Importe',
+                                        style: TextStyle(
+                                          color: AppColors.textGrey,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                      Text(
+                                        '\$${lineTotal.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          color: AppColors.navy,
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ],
                           ),

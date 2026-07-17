@@ -1,5 +1,7 @@
 class BranchOperation {
   final int openingUserId;
+  final String openingUserGuid;
+  final String openingUserName;
   final int? closingUserId;
   final int branchId;
   final int statusId;
@@ -31,6 +33,8 @@ class BranchOperation {
 
   const BranchOperation({
     required this.openingUserId,
+    this.openingUserGuid = '',
+    this.openingUserName = 'Usuario',
     required this.closingUserId,
     required this.branchId,
     required this.statusId,
@@ -64,6 +68,8 @@ class BranchOperation {
   factory BranchOperation.fromMap(Map<String, Object?> map) {
     return BranchOperation(
       openingUserId: _integer(map['usuario_apertura_id']),
+      openingUserGuid: map['usuario_apertura_guid']?.toString() ?? '',
+      openingUserName: map['usuario_apertura_nombre']?.toString() ?? 'Usuario',
       closingUserId: _nullableInteger(map['usuario_cierre_id']),
       branchId: _integer(map['sucursal_id']),
       statusId: _integer(map['estatus_id']),

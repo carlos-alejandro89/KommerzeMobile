@@ -3,14 +3,20 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:kommerze_mobile/core/storage/secure_storage_provider.dart';
+import 'package:kommerze_mobile/features/auth/data/datasources/auth_local.dart';
 import 'package:kommerze_mobile/features/branch_operation/data/datasources/branch_operation_local_data_source.dart';
 import 'package:kommerze_mobile/features/branch_operation/domain/entities/branch_operation_state.dart';
 
 class BranchOperationRepository {
   final BranchOperationLocalDataSource local;
   final FlutterSecureStorage secureStorage;
+  final AuthLocal authLocal;
 
-  const BranchOperationRepository(this.local, this.secureStorage);
+  const BranchOperationRepository(
+    this.local,
+    this.secureStorage,
+    this.authLocal,
+  );
 
   Future<BranchOperationState> getState() async {
     return BranchOperationState(
@@ -23,8 +29,16 @@ class BranchOperationRepository {
     required double initialCashAmount,
     required String? notes,
   }) async {
+    final user = authLocal.readUser();
+    if (user == null) {
+      throw const BranchOperationException(
+        'No fue posible identificar al usuario de la sesión.',
+      );
+    }
     await local.open(
       userId: await _currentUserId(),
+      userGuid: user.userGuid.isNotEmpty ? user.userGuid : user.id,
+      userName: user.name,
       initialCashAmount: initialCashAmount,
       notes: notes,
     );
@@ -74,5 +88,6 @@ final branchOperationRepositoryProvider = Provider<BranchOperationRepository>((
   return BranchOperationRepository(
     ref.read(branchOperationLocalDataSourceProvider),
     ref.read(secureStorageProvider),
+    ref.read(authLocalProvider),
   );
 });
