@@ -16,6 +16,9 @@ class InventoryController extends AsyncNotifier<List<InventoryItem>> {
   Future<bool> recoverInventory() =>
       _run(() => ref.read(inventoryRepositoryProvider).recoverInventory());
 
+  Future<bool> backupInventory() =>
+      _run(() => ref.read(inventoryRepositoryProvider).backupInventory());
+
   Future<bool> _run(Future<List<InventoryItem>> Function() action) async {
     state = const AsyncLoading<List<InventoryItem>>();
     final result = await AsyncValue.guard(action);

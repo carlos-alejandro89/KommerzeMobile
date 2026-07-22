@@ -4,6 +4,8 @@ import 'package:sqflite/sqflite.dart';
 
 class AppDatabase {
   static const _databaseName = 'kommerze_mobile.db';
+  // Línea base consolidada. Se conserva el número para abrir sin pérdida de
+  // datos las instalaciones que ya alcanzaron este esquema.
   static const _databaseVersion = 18;
 
   Database? _database;
@@ -18,6 +20,7 @@ class AppDatabase {
       path.join(directory, _databaseName),
       version: _databaseVersion,
       onConfigure: (database) => database.execute('PRAGMA foreign_keys = ON'),
+      onOpen: _ensureCurrentSchema,
       onCreate: (database, version) async {
         await _createLicensesTable(database);
         await _createBranchesTable(database);
@@ -32,8 +35,8 @@ class AppDatabase {
         await _createUsersTable(database);
         await _createSalesTables(database);
         await _createSalePaymentsTable(database);
+        await _createCollectionsTables(database);
       },
-      onUpgrade: _migrate,
     );
   }
 
@@ -331,129 +334,129 @@ class AppDatabase {
     );
   }
 
-  Future<void> _migrate(
-    Database database,
-    int oldVersion,
-    int newVersion,
-  ) async {
-    if (oldVersion < 2) {
-      await database.execute(
-        'ALTER TABLE licenses ADD COLUMN license_guid TEXT',
-      );
-      await database.execute(
-        'ALTER TABLE licenses ADD COLUMN app_version TEXT',
-      );
-      await database.execute('ALTER TABLE licenses ADD COLUMN expires_at TEXT');
-      await _createBranchesTable(database);
-    }
-    if (oldVersion < 3) {
-      await database.execute(
-        'ALTER TABLE licenses ADD COLUMN license_api_id INTEGER',
-      );
-      await database.execute(
-        'ALTER TABLE licenses ADD COLUMN validity_months INTEGER',
-      );
-    }
-    if (oldVersion < 4) {
-      await _createInventoryTable(database);
-    }
-    if (oldVersion < 5) {
-      await _createBranchOperationsTable(database);
-    }
-    if (oldVersion < 6) {
-      await database.execute(
-        'ALTER TABLE operaciones_sucursal RENAME TO operaciones_sucursal_v5',
-      );
-      await _createBranchOperationsTable(database);
-      await database.execute('''
-        INSERT INTO operaciones_sucursal (
-          guid, usuario_apertura_id, usuario_cierre_id, sucursal_id,
-          estatus_id, fecha_inicio, fecha_fin, valor_inicial_inventario,
-          valor_compras, valor_ventas, descuentos_aplicados,
-          ajuste_inventario, valor_final_inventario, ingreso_efectivo,
-          ingreso_tarjetas, ingreso_cheques, ingreso_transferencia,
-          ingreso_otros, creditos, vales_salida, vales_entrantes,
-          cfdi_efectivo, cfdi_tarjetas, cfdi_cheques, cfdi_transferencia,
-          cfdi_otros, bajas_mercancia, monto_inicial_caja, observaciones,
-          created_at, updated_at, deleted_at
-        )
-        SELECT
-          guid, usuario_apertura_id, usuario_cierre_id, sucursal_id,
-          estatus_id, fecha_inicio, fecha_fin, valor_inicial_inventario,
-          valor_compras, valor_ventas, descuentos_aplicados,
-          ajuste_inventario, valor_final_inventario, ingreso_efectivo,
-          ingreso_tarjetas, ingreso_cheques, ingreso_transferencia,
-          ingreso_otros, creditos, vales_salida, vales_entrantes,
-          cfdi_efectivo, cfdi_tarjetas, cfdi_cheques, cfdi_transferencia,
-          cfdi_otros, bajas_mercancia, monto_inicial_caja, observaciones,
-          created_at, updated_at, deleted_at
-        FROM operaciones_sucursal_v5
-      ''');
-      await database.execute('DROP TABLE operaciones_sucursal_v5');
-    }
-    if (oldVersion < 7) {
-      await _createClientsTable(database);
-    }
-    if (oldVersion < 8) {
-      await _createPaymentFormsTable(database);
-    }
-    if (oldVersion < 9) {
-      await _createProfilesTable(database);
-    }
-    if (oldVersion < 10) {
-      await _createOrderTypesTable(database);
-    }
-    if (oldVersion < 11) {
-      await _createStatusesTable(database);
-    }
-    if (oldVersion < 12) {
-      await database.execute('ALTER TABLE clientes ADD COLUMN synced_at TEXT');
-    }
-    if (oldVersion < 13) {
-      await _createUsersTable(database);
-    }
-    if (oldVersion < 14) {
-      await _createPaymentMethodsTable(database);
-    }
-    if (oldVersion < 15) {
-      await _createSalesTables(database);
-    }
-    if (oldVersion < 16) {
-      await _createSalePaymentsTable(database);
-    }
-    if (oldVersion < 17) {
-      await _addColumnIfMissing(
-        database,
-        table: 'inventario',
-        column: 'img_referencia',
-        definition: "TEXT NOT NULL DEFAULT ''",
-      );
-    }
-    if (oldVersion < 18) {
-      await _addColumnIfMissing(
-        database,
-        table: 'operaciones_sucursal',
-        column: 'usuario_apertura_guid',
-        definition: 'TEXT',
-      );
-      await _addColumnIfMissing(
-        database,
-        table: 'operaciones_sucursal',
-        column: 'usuario_apertura_nombre',
-        definition: 'TEXT',
-      );
-    }
+  Future<void> _ensureCurrentSchema(Database database) async {
+    await _createCollectionsTables(database);
   }
 
-  Future<void> _addColumnIfMissing(
-    Database database, {
-    required String table,
-    required String column,
-    required String definition,
-  }) async {
-    final columns = await database.rawQuery('PRAGMA table_info($table)');
-    if (columns.any((row) => row['name'] == column)) return;
-    await database.execute('ALTER TABLE $table ADD COLUMN $column $definition');
+  Future<void> _createCollectionsTables(DatabaseExecutor database) async {
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS cuentas_por_cobrar (
+        cuenta_guid TEXT PRIMARY KEY,
+        cliente_guid TEXT NOT NULL,
+        pedido_guid TEXT NOT NULL UNIQUE,
+        importe_original REAL NOT NULL,
+        fecha_emision TEXT NOT NULL,
+        fecha_vencimiento TEXT NOT NULL,
+        estatus_guid TEXT NOT NULL,
+        bloqueada INTEGER NOT NULL DEFAULT 0,
+        sync INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (cliente_guid) REFERENCES clientes(guid),
+        FOREIGN KEY (pedido_guid) REFERENCES pedidos(pedido_guid)
+          ON DELETE CASCADE,
+        FOREIGN KEY (estatus_guid) REFERENCES estatus(guid)
+      )
+    ''');
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS cobros_cliente (
+        cobro_guid TEXT PRIMARY KEY,
+        sucursal_guid TEXT NOT NULL,
+        cliente_guid TEXT NOT NULL,
+        fecha TEXT NOT NULL,
+        monto_total REAL NOT NULL,
+        saldo_disponible REAL NOT NULL DEFAULT 0,
+        referencia TEXT,
+        usuario_guid TEXT,
+        usuario_nombre TEXT,
+        cancelado INTEGER NOT NULL DEFAULT 0,
+        fecha_cancelacion TEXT,
+        motivo_cancelacion TEXT,
+        sync INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (cliente_guid) REFERENCES clientes(guid)
+      )
+    ''');
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS cobro_formas_pago (
+        pago_cobro_guid TEXT PRIMARY KEY,
+        cobro_guid TEXT NOT NULL,
+        forma_pago_guid TEXT NOT NULL,
+        monto REAL NOT NULL,
+        referencia TEXT,
+        FOREIGN KEY (cobro_guid) REFERENCES cobros_cliente(cobro_guid)
+          ON DELETE CASCADE,
+        FOREIGN KEY (forma_pago_guid) REFERENCES formas_pago(guid)
+      )
+    ''');
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS aplicaciones_cobro (
+        aplicacion_guid TEXT PRIMARY KEY,
+        cobro_guid TEXT NOT NULL,
+        cuenta_guid TEXT NOT NULL,
+        monto_aplicado REAL NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (cobro_guid) REFERENCES cobros_cliente(cobro_guid)
+          ON DELETE CASCADE,
+        FOREIGN KEY (cuenta_guid) REFERENCES cuentas_por_cobrar(cuenta_guid)
+          ON DELETE CASCADE
+      )
+    ''');
+    await _ensureReceivableStatusReference(database);
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_cxc_cliente ON cuentas_por_cobrar(cliente_guid, fecha_vencimiento)',
+    );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_cxc_pedido ON cuentas_por_cobrar(pedido_guid)',
+    );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_cxc_estatus ON cuentas_por_cobrar(estatus_guid)',
+    );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_cobros_cliente ON cobros_cliente(cliente_guid, fecha)',
+    );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_cobros_fecha ON cobros_cliente(fecha, cancelado)',
+    );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_aplicaciones_cuenta ON aplicaciones_cobro(cuenta_guid)',
+    );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_aplicaciones_cobro ON aplicaciones_cobro(cobro_guid)',
+    );
+  }
+
+  Future<void> _ensureReceivableStatusReference(
+    DatabaseExecutor database,
+  ) async {
+    final columns = await database.rawQuery(
+      'PRAGMA table_info(cuentas_por_cobrar)',
+    );
+    final names = columns.map((row) => row['name']?.toString()).toSet();
+    if (!names.contains('estatus_guid')) {
+      await database.execute(
+        'ALTER TABLE cuentas_por_cobrar ADD COLUMN estatus_guid TEXT REFERENCES estatus(guid)',
+      );
+    }
+    if (names.contains('estatus')) {
+      await database.rawUpdate('''
+        UPDATE cuentas_por_cobrar
+        SET estatus_guid = (
+          SELECT e.guid
+          FROM estatus e
+          WHERE LOWER(e.nombre) = CASE LOWER(cuentas_por_cobrar.estatus)
+            WHEN 'cancelada' THEN 'cancelado'
+            ELSE LOWER(cuentas_por_cobrar.estatus)
+          END
+          LIMIT 1
+        )
+        WHERE estatus_guid IS NULL
+      ''');
+    }
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_cxc_estatus ON cuentas_por_cobrar(estatus_guid)',
+    );
   }
 }
 

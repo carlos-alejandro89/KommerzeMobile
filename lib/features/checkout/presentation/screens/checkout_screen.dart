@@ -15,6 +15,7 @@ import 'package:kommerze_mobile/features/sales/domain/entities/sale_payment_draf
 import 'package:kommerze_mobile/features/sales/domain/entities/sale_order.dart';
 import 'package:kommerze_mobile/features/branch_operation/presentation/controllers/branch_operation_controller.dart';
 import 'package:kommerze_mobile/features/inventory/presentation/controllers/inventory_controller.dart';
+import 'package:kommerze_mobile/features/collections/presentation/controllers/collections_controller.dart';
 
 class CheckoutScreen extends ConsumerWidget {
   const CheckoutScreen({super.key});
@@ -22,6 +23,14 @@ class CheckoutScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final checkout = ref.watch(checkoutControllerProvider);
+    final availableCredit = checkout.client == null
+        ? 0.0
+        : ref
+                  .watch(collectionClientDetailProvider(checkout.client!.guid))
+                  .value
+                  ?.client
+                  .availableCredit ??
+              checkout.client!.creditAmount;
     final total = ref.watch(saleCartTotalProvider);
     final pending = (total - checkout.paid)
         .clamp(0, double.infinity)
@@ -62,6 +71,7 @@ class CheckoutScreen extends ConsumerWidget {
                       ? _EmptyClient(onTap: () => _selectClient(context, ref))
                       : _SelectedClient(
                           client: checkout.client!,
+                          availableCredit: availableCredit,
                           onTap: () => _selectClient(context, ref),
                         ),
                 ),
@@ -157,6 +167,7 @@ class CheckoutScreen extends ConsumerWidget {
                                   ref,
                                   pending,
                                   checkout.client,
+                                  availableCredit,
                                 )
                               : null,
                           icon: const Icon(Icons.add_circle_outline_rounded),
@@ -312,11 +323,12 @@ class CheckoutScreen extends ConsumerWidget {
     WidgetRef ref,
     double pending,
     Client? client,
+    double availableCredit,
   ) async {
     final draft = await AddPaymentSheet.show(
       context,
       pending: pending,
-      availableCredit: client?.creditAmount ?? 0,
+      availableCredit: client == null ? 0 : availableCredit,
     );
     if (draft == null) return;
     ref
@@ -527,8 +539,13 @@ class _EmptyClient extends StatelessWidget {
 
 class _SelectedClient extends StatelessWidget {
   final Client client;
+  final double availableCredit;
   final VoidCallback onTap;
-  const _SelectedClient({required this.client, required this.onTap});
+  const _SelectedClient({
+    required this.client,
+    required this.availableCredit,
+    required this.onTap,
+  });
   @override
   Widget build(BuildContext context) => InkWell(
     onTap: onTap,
@@ -568,7 +585,7 @@ class _SelectedClient extends StatelessWidget {
               ),
               if (client.creditAmount > 0)
                 Text(
-                  'Crédito disponible ${_money(client.creditAmount)}',
+                  'Crédito disponible ${_money(availableCredit)}',
                   style: const TextStyle(
                     color: AppColors.success,
                     fontSize: 11.5,

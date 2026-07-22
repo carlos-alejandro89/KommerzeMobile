@@ -17,4 +17,8 @@ class AppConstants {
   static const catalogSyncScreenRoute = '/catalog-sync';
   static const salesHistoryScreenRoute = '/sales-history';
   static const saleDetailScreenRoute = '/sales-history/:orderGuid';
+  static const collectionsScreenRoute = '/collections';
+  static const collectionClientScreenRoute = '/collections/:clientGuid';
+  static const collectionRegisterScreenRoute =
+      '/collections/:clientGuid/register';
 }

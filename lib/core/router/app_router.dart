@@ -20,6 +20,9 @@ import 'package:kommerze_mobile/features/sync/presentation/screens/catalog_sync_
 import 'package:kommerze_mobile/features/sales_history/presentation/screens/sales_history_screen.dart';
 import 'package:kommerze_mobile/features/sales_history/presentation/screens/sale_detail_screen.dart';
 import 'package:kommerze_mobile/features/welcome/presentation/screens/welcome_screen.dart';
+import 'package:kommerze_mobile/features/collections/presentation/screens/collections_screen.dart';
+import 'package:kommerze_mobile/features/collections/presentation/screens/collection_client_screen.dart';
+import 'package:kommerze_mobile/features/collections/presentation/screens/register_collection_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ValueNotifier(ref.read(authControllerProvider));
@@ -114,6 +117,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppConstants.saleDetailScreenRoute,
         builder: (_, state) => SaleDetailScreen(
           orderGuid: state.pathParameters['orderGuid'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppConstants.collectionsScreenRoute,
+        builder: (_, _) => const CollectionsScreen(),
+      ),
+      GoRoute(
+        path: AppConstants.collectionRegisterScreenRoute,
+        builder: (_, state) => RegisterCollectionScreen(
+          clientGuid: state.pathParameters['clientGuid'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppConstants.collectionClientScreenRoute,
+        builder: (_, state) => CollectionClientScreen(
+          clientGuid: state.pathParameters['clientGuid'] ?? '',
         ),
       ),
     ],

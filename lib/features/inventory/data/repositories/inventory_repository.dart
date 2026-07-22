@@ -30,6 +30,17 @@ class InventoryRepository {
     return local.getItems();
   }
 
+  Future<List<InventoryItem>> backupInventory() async {
+    final items = await local.getItems();
+    if (items.isEmpty) {
+      throw const InventoryException(
+        'No hay artículos en el inventario para respaldar.',
+      );
+    }
+    await api.backupInventory(await _branchGuid(), items);
+    return items;
+  }
+
   Future<String> _branchGuid() async {
     final guid = await local.getBranchGuid();
     if (guid == null || guid.isEmpty) {

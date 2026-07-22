@@ -85,7 +85,7 @@ class CatalogSyncController extends Notifier<CatalogSyncState> {
         CatalogSyncItem(
           type: CatalogType.statuses,
           title: 'Estatus',
-          description: 'Estatus para pedidos y operaciones',
+          description: 'Estatus para pedidos, operaciones y cobranza',
           endpoint: '/catalogos/estatus/get',
         ),
       ],

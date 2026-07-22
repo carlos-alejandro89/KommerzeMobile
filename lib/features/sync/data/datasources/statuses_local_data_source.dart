@@ -9,21 +9,55 @@ class StatusesLocalDataSource {
 
   Future<void> replaceAll(List<StatusCatalog> items, DateTime syncedAt) async {
     final db = await database.instance;
+    final receivableColumns = await db.rawQuery(
+      'PRAGMA table_info(cuentas_por_cobrar)',
+    );
+    final hasLegacyStatus = receivableColumns.any(
+      (column) => column['name'] == 'estatus',
+    );
     await db.transaction((transaction) async {
-      await transaction.delete('estatus');
       final batch = transaction.batch();
       for (final item in items) {
-        batch.insert('estatus', {
-          'guid': item.guid,
-          'api_id': item.id,
-          'nombre': item.name,
-          'created_at': item.createdAt?.toIso8601String(),
-          'updated_at': item.updatedAt?.toIso8601String(),
-          'deleted_at': item.deletedAt?.toIso8601String(),
-          'synced_at': syncedAt.toUtc().toIso8601String(),
-        }, conflictAlgorithm: ConflictAlgorithm.replace);
+        batch.rawInsert(
+          '''
+          INSERT INTO estatus (
+            guid, api_id, nombre, created_at, updated_at, deleted_at, synced_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(guid) DO UPDATE SET
+            api_id = excluded.api_id,
+            nombre = excluded.nombre,
+            created_at = excluded.created_at,
+            updated_at = excluded.updated_at,
+            deleted_at = excluded.deleted_at,
+            synced_at = excluded.synced_at
+          ''',
+          [
+            item.guid,
+            item.id,
+            item.name,
+            item.createdAt?.toIso8601String(),
+            item.updatedAt?.toIso8601String(),
+            item.deletedAt?.toIso8601String(),
+            syncedAt.toUtc().toIso8601String(),
+          ],
+        );
       }
       await batch.commit(noResult: true);
+      if (hasLegacyStatus) {
+        await transaction.rawUpdate('''
+          UPDATE cuentas_por_cobrar
+          SET estatus_guid = (
+            SELECT e.guid
+            FROM estatus e
+            WHERE LOWER(e.nombre) = CASE LOWER(cuentas_por_cobrar.estatus)
+              WHEN 'cancelada' THEN 'cancelado'
+              ELSE LOWER(cuentas_por_cobrar.estatus)
+            END
+            LIMIT 1
+          )
+          WHERE estatus_guid IS NULL
+        ''');
+      }
     });
   }
 

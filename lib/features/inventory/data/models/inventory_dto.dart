@@ -3,6 +3,16 @@ import 'package:kommerze_mobile/features/inventory/domain/entities/inventory_ite
 class InventoryDto {
   const InventoryDto._();
 
+  static Map<String, dynamic> toBackupPayload(InventoryItem item) {
+    return {
+      'nivelGuid': item.levelGuid,
+      'precioCompra': item.purchasePrice,
+      'precioVenta': item.salePrice,
+      'porcentajeDescuento': item.discountPercentage,
+      'existencia': item.stock,
+    };
+  }
+
   static InventoryItem fromPrice(Map<String, dynamic> json) {
     return _fromJson(json, initialStock: 0);
   }

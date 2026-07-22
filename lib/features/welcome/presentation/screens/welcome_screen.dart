@@ -210,6 +210,12 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       context.push(AppConstants.purchasesScreenRoute);
       return;
     }
+    if (module.title == 'Cobranza') {
+      final operationOpen = await BranchOperationGuard.ensureOpen(context, ref);
+      if (!operationOpen || !mounted) return;
+      context.push(AppConstants.collectionsScreenRoute);
+      return;
+    }
     if (module.title == 'Sync') {
       context.push(AppConstants.catalogSyncScreenRoute);
       return;
@@ -1439,6 +1445,12 @@ const _moduleItems = [
     'Existencias, precios y sincronización',
     Icons.inventory_2_rounded,
     [Color(0xFF1678D3), Color(0xFF0647A8)],
+  ),
+  _QuickData(
+    'Cobranza',
+    'Cuentas por cobrar y abonos',
+    Icons.request_quote_rounded,
+    [Color(0xFF23A66F), Color(0xFF087A45)],
   ),
   _QuickData('Sync', 'Descarga y actualiza catálogos', Icons.sync_rounded, [
     Color(0xFF3D67D8),

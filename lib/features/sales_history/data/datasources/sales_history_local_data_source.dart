@@ -22,8 +22,10 @@ class SalesHistoryLocalDataSource {
         COALESCE(d.total, 0) AS total,
         COALESCE(d.unidades, 0) AS unidades,
         COALESCE(pg.formas_pago, '') AS formas_pago,
-        COALESCE(pg.monto_cobrado, 0) AS monto_cobrado,
-        COALESCE(pg.monto_credito, 0) AS monto_credito
+        COALESCE(pg.monto_cobrado, 0) + COALESCE(ca.monto_cobrado, 0)
+          AS monto_cobrado,
+        CASE WHEN cx.pedido_guid IS NOT NULL THEN COALESCE(cx.saldo_credito, 0)
+          ELSE COALESCE(pg.monto_credito, 0) END AS monto_credito
       FROM pedidos p
       LEFT JOIN clientes c ON c.guid = p.cliente_guid
       LEFT JOIN estatus e ON e.guid = p.estatus_guid
@@ -56,6 +58,27 @@ class SalesHistoryLocalDataSource {
         ) payment_rows
         GROUP BY payment_rows.pedido_guid
       ) pg ON pg.pedido_guid = p.pedido_guid
+      LEFT JOIN (
+        SELECT cc.pedido_guid, SUM(ac.monto_aplicado) AS monto_cobrado
+        FROM cuentas_por_cobrar cc
+        INNER JOIN aplicaciones_cobro ac ON ac.cuenta_guid = cc.cuenta_guid
+        INNER JOIN cobros_cliente co ON co.cobro_guid = ac.cobro_guid
+        WHERE co.cancelado = 0
+        GROUP BY cc.pedido_guid
+      ) ca ON ca.pedido_guid = p.pedido_guid
+      LEFT JOIN (
+        SELECT
+          cc.pedido_guid,
+          MAX(cc.importe_original - COALESCE(SUM(CASE
+            WHEN co.cancelado = 0 THEN ac.monto_aplicado ELSE 0 END), 0), 0)
+            AS saldo_credito
+        FROM cuentas_por_cobrar cc
+        LEFT JOIN aplicaciones_cobro ac ON ac.cuenta_guid = cc.cuenta_guid
+        LEFT JOIN cobros_cliente co ON co.cobro_guid = ac.cobro_guid
+        LEFT JOIN estatus cxe ON cxe.guid = cc.estatus_guid
+        WHERE LOWER(COALESCE(cxe.nombre, '')) <> 'cancelado'
+        GROUP BY cc.pedido_guid, cc.importe_original
+      ) cx ON cx.pedido_guid = p.pedido_guid
       WHERE p.tipo_pedido_guid <> 'c82164a9-616c-4148-80fd-c4702d8a7cca'
       ORDER BY p.fecha DESC
       ${limit == null ? '' : 'LIMIT ?'}
@@ -102,16 +125,36 @@ class SalesHistoryLocalDataSource {
     );
     final paymentRows = await db.rawQuery(
       '''
-      SELECT
-        pv.pago_guid, pv.fecha_pago, pv.monto, pv.es_credito,
-        COALESCE(fp.clave, '') AS forma_clave,
-        COALESCE(fp.descripcion, 'Forma de pago') AS forma_descripcion
-      FROM pagos_venta pv
-      LEFT JOIN formas_pago fp ON fp.guid = pv.forma_pago_guid
-      WHERE pv.pedido_guid = ?
-      ORDER BY pv.fecha_pago
+      SELECT * FROM (
+        SELECT
+          pv.pago_guid, pv.fecha_pago, pv.monto, pv.es_credito,
+          COALESCE(fp.clave, '') AS forma_clave,
+          COALESCE(fp.descripcion, 'Forma de pago') AS forma_descripcion
+        FROM pagos_venta pv
+        LEFT JOIN formas_pago fp ON fp.guid = pv.forma_pago_guid
+        WHERE pv.pedido_guid = ?
+        UNION ALL
+        SELECT
+          ac.aplicacion_guid AS pago_guid,
+          co.fecha AS fecha_pago,
+          ac.monto_aplicado AS monto,
+          0 AS es_credito,
+          'COB' AS forma_clave,
+          'COBRANZA · ' || COALESCE((
+            SELECT CASE WHEN COUNT(*) > 1 THEN 'MULTIPAGO'
+              ELSE MAX(fp2.descripcion) END
+            FROM cobro_formas_pago cfp2
+            INNER JOIN formas_pago fp2 ON fp2.guid = cfp2.forma_pago_guid
+            WHERE cfp2.cobro_guid = co.cobro_guid
+          ), 'PAGO') AS forma_descripcion
+        FROM cuentas_por_cobrar cc
+        INNER JOIN aplicaciones_cobro ac ON ac.cuenta_guid = cc.cuenta_guid
+        INNER JOIN cobros_cliente co ON co.cobro_guid = ac.cobro_guid
+        WHERE cc.pedido_guid = ? AND co.cancelado = 0
+      )
+      ORDER BY fecha_pago
     ''',
-      [orderGuid],
+      [orderGuid, orderGuid],
     );
     final order = orders.first;
     return SaleDetail(

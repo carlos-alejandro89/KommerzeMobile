@@ -17,6 +17,13 @@ import 'package:kommerze_mobile/features/license/domain/entities/stored_branch.d
 import 'package:kommerze_mobile/features/license/data/models/license_activation_response_dto.dart';
 import 'package:kommerze_mobile/features/inventory/data/models/inventory_dto.dart';
 import 'package:kommerze_mobile/features/inventory/domain/entities/inventory_item.dart';
+import 'package:kommerze_mobile/features/inventory/presentation/widgets/inventory_confirmation_sheet.dart';
+import 'package:kommerze_mobile/features/collections/domain/entities/collection_models.dart';
+import 'package:kommerze_mobile/features/collections/domain/services/collection_allocation_service.dart';
+import 'package:kommerze_mobile/features/collections/presentation/controllers/collections_controller.dart';
+import 'package:kommerze_mobile/features/collections/presentation/screens/collections_screen.dart';
+import 'package:kommerze_mobile/features/collections/presentation/screens/collection_client_screen.dart';
+import 'package:kommerze_mobile/features/collections/presentation/widgets/collection_confirmation_sheet.dart';
 import 'package:kommerze_mobile/features/purchases/presentation/controllers/purchases_controller.dart';
 import 'package:kommerze_mobile/features/sales/data/datasources/sales_local_data_source.dart';
 import 'package:kommerze_mobile/features/branch_operation/domain/entities/branch_operation.dart';
@@ -40,6 +47,281 @@ import 'package:kommerze_mobile/features/sales_history/presentation/screens/sale
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('aplica una cobranza a las cuentas más antiguas y omite bloqueadas', () {
+    final accounts = [
+      _receivable(guid: 'oldest', folio: 1, original: 500, dueDay: 1),
+      _receivable(
+        guid: 'second',
+        folio: 2,
+        original: 600,
+        paid: 100,
+        dueDay: 2,
+      ),
+      _receivable(
+        guid: 'blocked',
+        folio: 3,
+        original: 300,
+        dueDay: 3,
+        blocked: true,
+      ),
+    ];
+
+    final preview = allocateCollectionPayment(accounts, 800);
+
+    expect(preview.allocations, hasLength(2));
+    expect(preview.allocations.first.accountGuid, 'oldest');
+    expect(preview.allocations.first.appliedAmount, 500);
+    expect(preview.allocations.last.accountGuid, 'second');
+    expect(preview.allocations.last.appliedAmount, 300);
+    expect(preview.creditBalance, 0);
+  });
+
+  test('conserva como saldo a favor el excedente de una cobranza', () {
+    final preview = allocateCollectionPayment([
+      _receivable(guid: 'one', folio: 1, original: 500, dueDay: 1),
+      _receivable(guid: 'two', folio: 2, original: 300, dueDay: 2),
+    ], 1000);
+
+    expect(preview.appliedAmount, 800);
+    expect(preview.creditBalance, 200);
+    expect(preview.allocations.last.resultingBalance, 0);
+  });
+
+  testWidgets('muestra el resumen y clientes del módulo Cobranza', (
+    tester,
+  ) async {
+    final client = _collectionClientSummary();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          collectionsDashboardProvider.overrideWith(
+            (ref) async => CollectionDashboard(
+              clients: [client],
+              totalReceivable: 800,
+              overdueReceivable: 300,
+              collectedToday: 250,
+            ),
+          ),
+        ],
+        child: const MaterialApp(
+          locale: Locale('es', 'MX'),
+          supportedLocales: [Locale('es', 'MX')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: CollectionsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cobranza'), findsOneWidget);
+    expect(find.text('Saldo por cobrar'), findsOneWidget);
+    expect(find.text('Cliente de prueba'), findsOneWidget);
+    expect(find.text(r'$800.00'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('muestra el estado de cuenta y la opción de registrar cobro', (
+    tester,
+  ) async {
+    final client = _collectionClientSummary();
+    final account = _receivable(
+      guid: 'account-1',
+      folio: 10,
+      original: 1000,
+      paid: 200,
+      dueDay: 10,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          collectionClientDetailProvider('client-1').overrideWith(
+            (ref) async => CollectionClientDetail(
+              client: client,
+              accounts: [account],
+              collections: [
+                CollectionRecord(
+                  collectionGuid: 'collection-1',
+                  date: DateTime(2026, 7, 2, 10, 30),
+                  total: 200,
+                  applied: 200,
+                  creditBalance: 0,
+                  reference: '',
+                  userName: 'Cajero de prueba',
+                  cancelled: false,
+                  paymentForms: const ['01 - EFECTIVO'],
+                  appliedSales: const [
+                    CollectionAppliedSale(
+                      accountGuid: 'account-1',
+                      orderGuid: 'order-10',
+                      folio: 10,
+                      appliedAmount: 200,
+                    ),
+                  ],
+                ),
+              ],
+              statement: [
+                AccountStatementMovement(
+                  guid: 'movement-1',
+                  orderGuid: 'order-10',
+                  type: AccountStatementMovementType.charge,
+                  date: DateTime(2026, 7, 1),
+                  description: 'Venta VTA-000010',
+                  amount: 1000,
+                  runningBalance: 1000,
+                ),
+              ],
+            ),
+          ),
+        ],
+        child: const MaterialApp(
+          locale: Locale('es', 'MX'),
+          supportedLocales: [Locale('es', 'MX')],
+          localizationsDelegates: [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: CollectionClientScreen(clientGuid: 'client-1'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Estado de cuenta'), findsOneWidget);
+    expect(find.text('Movimientos del estado de cuenta'), findsOneWidget);
+    expect(find.text('Venta VTA-000010'), findsWidgets);
+    expect(find.byIcon(Icons.chevron_right_rounded), findsWidgets);
+    expect(find.text('Registrar cobro'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Aplicado a la venta'),
+      250,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Aplicado a la venta'), findsOneWidget);
+    expect(find.text(r'$200.00'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('cancela una acción crítica de inventario sin ejecutarla', (
+    tester,
+  ) async {
+    var executed = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => showInventoryConfirmationSheet(
+                context: context,
+                kind: InventoryConfirmationKind.recover,
+                onConfirm: () async => executed = true,
+              ),
+              child: const Text('Abrir'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Abrir'));
+    await tester.pumpAndSettle();
+    expect(find.text('Confirmar recuperación'), findsOneWidget);
+
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+
+    expect(executed, isFalse);
+    expect(find.text('Confirmar recuperación'), findsNothing);
+  });
+
+  testWidgets('confirma el respaldo deslizando y cierra tras el éxito', (
+    tester,
+  ) async {
+    var executed = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => showInventoryConfirmationSheet(
+                context: context,
+                kind: InventoryConfirmationKind.backup,
+                onConfirm: () async => executed = true,
+              ),
+              child: const Text('Abrir'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Abrir'));
+    await tester.pumpAndSettle();
+    final slider = find.byWidgetPredicate(
+      (widget) =>
+          widget is GestureDetector && widget.onHorizontalDragUpdate != null,
+    );
+    expect(slider, findsOneWidget);
+
+    await tester.drag(slider, const Offset(700, 0));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(executed, isTrue);
+    expect(find.text('Inventario respaldado'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    expect(find.text('Inventario respaldado'), findsNothing);
+  });
+
+  testWidgets('confirma un cobro mediante control deslizable', (tester) async {
+    var executed = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => showCollectionConfirmationSheet(
+                context: context,
+                clientName: 'Cliente de prueba',
+                receivedAmount: 800,
+                appliedAmount: 750,
+                creditBalance: 50,
+                accountCount: 2,
+                onConfirm: () async => executed = true,
+              ),
+              child: const Text('Confirmar cobro'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Confirmar cobro'));
+    await tester.pumpAndSettle();
+    expect(find.text('Desliza para registrar'), findsOneWidget);
+    expect(find.text('Aplicado a 2 cuentas'), findsOneWidget);
+
+    final slider = find.byWidgetPredicate(
+      (widget) =>
+          widget is GestureDetector && widget.onHorizontalDragUpdate != null,
+    );
+    await tester.drag(slider, const Offset(700, 0));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(executed, isTrue);
+    expect(find.text('Cobro registrado'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    expect(find.text('Cobro registrado'), findsNothing);
+  });
+
   test('calcula ventas del día por hora y excluye canceladas', () {
     final items = [
       SaleHistoryItem(
@@ -238,6 +520,34 @@ void main() {
       SalesLocalDataSource.purchaseOrderTypeGuid,
       'c82164a9-616c-4148-80fd-c4702d8a7cca',
     );
+  });
+
+  test('construye el payload para respaldar el inventario', () {
+    const product = InventoryItem(
+      code: 'P-001',
+      description: 'Producto',
+      packageLevel: 'PIEZA',
+      barcode: '750000000001',
+      purchasePrice: 50,
+      salePrice: 80,
+      discountPercentage: 10,
+      stock: 7,
+      lineName: 'GENERAL',
+      brandName: 'MARCA',
+      levelGuid: 'level-guid',
+      productGuid: 'product-guid',
+      packageGuid: 'package-guid',
+    );
+
+    final payload = InventoryDto.toBackupPayload(product);
+
+    expect(payload, {
+      'nivelGuid': 'level-guid',
+      'precioCompra': 50.0,
+      'precioVenta': 80.0,
+      'porcentajeDescuento': 10.0,
+      'existencia': 7.0,
+    });
   });
 
   test('mapea un método de pago SAT', () {
@@ -758,6 +1068,38 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
+
+ReceivableAccount _receivable({
+  required String guid,
+  required int folio,
+  required double original,
+  required int dueDay,
+  double paid = 0,
+  bool blocked = false,
+}) => ReceivableAccount(
+  accountGuid: guid,
+  orderGuid: 'order-$guid',
+  folio: folio,
+  originalAmount: original,
+  paidAmount: paid,
+  issuedAt: DateTime(2026, 7, 1),
+  dueAt: DateTime(2026, 7, dueDay),
+  status: 'pendiente',
+  blocked: blocked,
+);
+
+CollectionClientSummary _collectionClientSummary() => CollectionClientSummary(
+  clientGuid: 'client-1',
+  name: 'Cliente de prueba',
+  rfc: 'XAXX010101000',
+  phone: '9931234567',
+  creditLimit: 2000,
+  balance: 800,
+  overdueBalance: 300,
+  creditBalance: 0,
+  openAccounts: 1,
+  oldestDueDate: DateTime(2026, 7, 10),
+);
 
 SaleDetail _saleDetail() => SaleDetail(
   orderGuid: 'order-58',

@@ -186,13 +186,15 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   Icons.search_rounded,
                   color: AppColors.primaryBlue,
                 ),
-                suffixIcon: IconButton(
-                  onPressed: () => _scanCamera(),
-                  icon: const Icon(
-                    Icons.document_scanner_outlined,
-                    color: AppColors.primaryBlue,
-                  ),
-                ),
+                suffixIcon: widget.purchaseMode
+                    ? IconButton(
+                        onPressed: () => _scanCamera(),
+                        icon: const Icon(
+                          Icons.document_scanner_outlined,
+                          color: AppColors.primaryBlue,
+                        ),
+                      )
+                    : null,
                 filled: true,
                 fillColor: Colors.white,
                 border: OutlineInputBorder(

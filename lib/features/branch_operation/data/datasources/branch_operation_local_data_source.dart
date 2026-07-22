@@ -206,18 +206,70 @@ class BranchOperationLocalDataSource {
         AND LOWER(COALESCE(e.nombre, '')) <> 'cancelado'
     ''', arguments);
 
+    final collectionDateCondition = endText == null
+        ? 'co.fecha >= ?'
+        : 'co.fecha >= ? AND co.fecha <= ?';
+    final collectionRows = await database.rawQuery('''
+      SELECT
+        COALESCE(SUM(CASE WHEN fp.clave = '01' THEN cfp.monto ELSE 0 END), 0)
+          AS ingreso_efectivo,
+        COALESCE(SUM(CASE WHEN fp.clave IN ('04', '28', '29')
+          THEN cfp.monto ELSE 0 END), 0) AS ingreso_tarjetas,
+        COALESCE(SUM(CASE WHEN fp.clave = '02' THEN cfp.monto ELSE 0 END), 0)
+          AS ingreso_cheques,
+        COALESCE(SUM(CASE WHEN fp.clave = '03' THEN cfp.monto ELSE 0 END), 0)
+          AS ingreso_transferencia,
+        COALESCE(SUM(CASE
+          WHEN fp.clave NOT IN ('01', '02', '03', '04', '28', '29')
+          THEN cfp.monto ELSE 0 END), 0) AS ingreso_otros
+      FROM cobro_formas_pago cfp
+      INNER JOIN cobros_cliente co ON co.cobro_guid = cfp.cobro_guid
+      INNER JOIN formas_pago fp ON fp.guid = cfp.forma_pago_guid
+      INNER JOIN sucursales s ON s.guid = co.sucursal_guid AND s.id = ?
+      WHERE co.cancelado = 0 AND $collectionDateCondition
+    ''', arguments);
+
+    final creditDateCondition = endText == null
+        ? 'cc.fecha_emision >= ?'
+        : 'cc.fecha_emision >= ? AND cc.fecha_emision <= ?';
+    final creditRows = await database.rawQuery('''
+      SELECT COALESCE(SUM(cc.importe_original), 0) AS creditos
+      FROM cuentas_por_cobrar cc
+      INNER JOIN pedidos p ON p.pedido_guid = cc.pedido_guid
+      LEFT JOIN estatus e ON e.guid = p.estatus_guid
+      LEFT JOIN estatus cxe ON cxe.guid = cc.estatus_guid
+      INNER JOIN sucursales s
+        ON s.guid = p.sucursal_origen_guid AND s.id = ?
+      WHERE $creditDateCondition
+        AND LOWER(COALESCE(cxe.nombre, '')) <> 'cancelado'
+        AND LOWER(COALESCE(e.nombre, '')) <> 'cancelado'
+    ''', arguments);
+
     final sales = saleRows.first;
     final payments = paymentRows.first;
+    final collections = collectionRows.first;
+    final credits = creditRows.first;
     return {
       'valor_ventas': _decimal(sales['valor_ventas']),
       'valor_compras': _decimal(sales['valor_compras']),
       'descuentos_aplicados': _decimal(sales['descuentos_aplicados']),
-      'ingreso_efectivo': _decimal(payments['ingreso_efectivo']),
-      'ingreso_tarjetas': _decimal(payments['ingreso_tarjetas']),
-      'ingreso_cheques': _decimal(payments['ingreso_cheques']),
-      'ingreso_transferencia': _decimal(payments['ingreso_transferencia']),
-      'ingreso_otros': _decimal(payments['ingreso_otros']),
-      'creditos': _decimal(payments['creditos']),
+      'ingreso_efectivo':
+          _decimal(payments['ingreso_efectivo']) +
+          _decimal(collections['ingreso_efectivo']),
+      'ingreso_tarjetas':
+          _decimal(payments['ingreso_tarjetas']) +
+          _decimal(collections['ingreso_tarjetas']),
+      'ingreso_cheques':
+          _decimal(payments['ingreso_cheques']) +
+          _decimal(collections['ingreso_cheques']),
+      'ingreso_transferencia':
+          _decimal(payments['ingreso_transferencia']) +
+          _decimal(collections['ingreso_transferencia']),
+      'ingreso_otros':
+          _decimal(payments['ingreso_otros']) +
+          _decimal(collections['ingreso_otros']),
+      'creditos':
+          _decimal(credits['creditos']) + _decimal(payments['creditos']),
     };
   }
 

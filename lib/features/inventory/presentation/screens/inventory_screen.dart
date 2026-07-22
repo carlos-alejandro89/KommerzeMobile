@@ -6,6 +6,7 @@ import 'package:kommerze_mobile/core/widgets/app_header.dart';
 import 'package:kommerze_mobile/core/widgets/product_image.dart';
 import 'package:kommerze_mobile/features/inventory/domain/entities/inventory_item.dart';
 import 'package:kommerze_mobile/features/inventory/presentation/controllers/inventory_controller.dart';
+import 'package:kommerze_mobile/features/inventory/presentation/widgets/inventory_confirmation_sheet.dart';
 
 enum _StockFilter { all, low, empty }
 
@@ -58,6 +59,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               PopupMenuButton<_InventoryAction>(
                 tooltip: 'Opciones de inventario',
                 color: Colors.white,
+                enabled: !inventory.isLoading,
                 icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
                 onSelected: _runAction,
                 itemBuilder: (_) => const [
@@ -71,8 +73,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   PopupMenuItem(
                     value: _InventoryAction.recoverInventory,
                     child: _ActionLabel(
-                      icon: Icons.inventory_2_outlined,
+                      icon: Icons.cloud_download_outlined,
                       text: 'Recuperar inventario',
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: _InventoryAction.backupInventory,
+                    child: _ActionLabel(
+                      icon: Icons.cloud_upload_outlined,
+                      text: 'Respaldar inventario',
                     ),
                   ),
                 ],
@@ -279,21 +288,46 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   }
 
   Future<void> _runAction(_InventoryAction action) async {
+    if (action != _InventoryAction.syncPrices) {
+      await _confirmCriticalAction(action);
+      return;
+    }
     final controller = ref.read(inventoryControllerProvider.notifier);
-    final success = action == _InventoryAction.syncPrices
-        ? await controller.syncPrices()
-        : await controller.recoverInventory();
+    final success = await controller.syncPrices();
     if (!mounted) return;
     final state = ref.read(inventoryControllerProvider);
     _showMessage(
-      success
-          ? action == _InventoryAction.syncPrices
-                ? 'Precios sincronizados correctamente.'
-                : 'Inventario recuperado correctamente.'
-          : state.error.toString(),
+      success ? _successMessage(action) : state.error.toString(),
       success: success,
     );
   }
+
+  Future<void> _confirmCriticalAction(_InventoryAction action) async {
+    final kind = action == _InventoryAction.backupInventory
+        ? InventoryConfirmationKind.backup
+        : InventoryConfirmationKind.recover;
+    await showInventoryConfirmationSheet(
+      context: context,
+      kind: kind,
+      onConfirm: () async {
+        final controller = ref.read(inventoryControllerProvider.notifier);
+        final success = action == _InventoryAction.backupInventory
+            ? await controller.backupInventory()
+            : await controller.recoverInventory();
+        if (success) return;
+        final error = ref.read(inventoryControllerProvider).error;
+        throw Exception(
+          error?.toString() ?? 'No fue posible completar la acción.',
+        );
+      },
+    );
+  }
+
+  String _successMessage(_InventoryAction action) => switch (action) {
+    _InventoryAction.syncPrices => 'Precios sincronizados correctamente.',
+    _InventoryAction.recoverInventory => 'Inventario recuperado correctamente.',
+    _InventoryAction.backupInventory => 'Inventario respaldado correctamente.',
+  };
 
   void _showMessage(String message, {required bool success}) {
     final color = success ? AppColors.success : AppColors.error;
@@ -332,7 +366,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   String _money(double value) => '\$${value.toStringAsFixed(2)}';
 }
 
-enum _InventoryAction { syncPrices, recoverInventory }
+enum _InventoryAction { syncPrices, recoverInventory, backupInventory }
 
 class _ActionLabel extends StatelessWidget {
   final IconData icon;

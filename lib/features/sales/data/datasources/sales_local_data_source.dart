@@ -46,7 +46,7 @@ class SalesLocalDataSource {
       );
       final client = await transaction.query(
         'clientes',
-        columns: const ['guid'],
+        columns: const ['guid', 'dias_credito', 'monto_credito'],
         where: 'guid = ? AND deleted_at IS NULL',
         whereArgs: [clientGuid],
         limit: 1,
@@ -154,7 +154,11 @@ class SalesLocalDataSource {
             sum +
             (detail.quantity * detail.salePrice * (1 - detail.discount / 100)),
       );
-      for (final payment in applyPaymentsToTotal(payments, saleTotal)) {
+      final actualPayments = applyPaymentsToTotal(
+        payments.where((payment) => !payment.isCredit).toList(growable: false),
+        saleTotal,
+      );
+      for (final payment in actualPayments) {
         final paymentFormGuid = await _singleGuid(
           transaction,
           table: 'formas_pago',
@@ -169,7 +173,62 @@ class SalesLocalDataSource {
           'pedido_guid': orderGuid,
           'fecha_pago': payment.paidAt.toUtc().toIso8601String(),
           'monto': payment.amount,
-          'es_credito': payment.isCredit ? 1 : 0,
+          'es_credito': 0,
+        });
+      }
+
+      final amountPaid = actualPayments.fold<double>(
+        0,
+        (sum, payment) => sum + payment.amount,
+      );
+      final receivableAmount = saleTotal - amountPaid;
+      if (isCredit && receivableAmount > .001) {
+        final usedCreditRows = await transaction.rawQuery(
+          '''
+          SELECT COALESCE(SUM(MAX(
+            cc.importe_original - COALESCE((
+              SELECT SUM(ac.monto_aplicado)
+              FROM aplicaciones_cobro ac
+              INNER JOIN cobros_cliente co ON co.cobro_guid = ac.cobro_guid
+              WHERE ac.cuenta_guid = cc.cuenta_guid AND co.cancelado = 0
+          ), 0), 0)), 0) AS utilizado
+          FROM cuentas_por_cobrar cc
+          LEFT JOIN estatus cxe ON cxe.guid = cc.estatus_guid
+          WHERE cc.cliente_guid = ?
+            AND LOWER(COALESCE(cxe.nombre, '')) <> 'cancelado'
+          ''',
+          [clientGuid],
+        );
+        final creditLimit = _decimal(client.first['monto_credito']);
+        final availableCredit =
+            creditLimit - _decimal(usedCreditRows.first['utilizado']);
+        if (receivableAmount - availableCredit > .001) {
+          throw SalesLocalException(
+            'El saldo a crédito supera el disponible del cliente.',
+          );
+        }
+        final creditDays = _integer(client.first['dias_credito']);
+        final dueAt = date.add(Duration(days: creditDays));
+        final receivableStatusGuid = await _singleGuid(
+          transaction,
+          table: 'estatus',
+          nameColumn: 'nombre',
+          name: creditDays <= 0 ? 'Vencida' : 'Pendiente',
+          error:
+              'Sincroniza el catálogo Estatus antes de registrar una venta a crédito.',
+        );
+        await transaction.insert('cuentas_por_cobrar', {
+          'cuenta_guid': const Uuid().v4(),
+          'cliente_guid': clientGuid,
+          'pedido_guid': orderGuid,
+          'importe_original': receivableAmount,
+          'fecha_emision': timestamp,
+          'fecha_vencimiento': dueAt.toIso8601String(),
+          'estatus_guid': receivableStatusGuid,
+          'bloqueada': 0,
+          'sync': 0,
+          'created_at': timestamp,
+          'updated_at': timestamp,
         });
       }
 
