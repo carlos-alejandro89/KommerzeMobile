@@ -7,7 +7,12 @@ import 'package:kommerze_mobile/features/clients/domain/entities/client.dart';
 import 'package:kommerze_mobile/features/clients/presentation/controllers/clients_controller.dart';
 
 class ClientSelectionScreen extends ConsumerStatefulWidget {
-  const ClientSelectionScreen({super.key});
+  final String subtitle;
+
+  const ClientSelectionScreen({
+    super.key,
+    this.subtitle = 'Asigna un cliente a la venta',
+  });
 
   @override
   ConsumerState<ClientSelectionScreen> createState() =>
@@ -32,14 +37,14 @@ class _ClientSelectionScreenState extends ConsumerState<ClientSelectionScreen> {
         children: [
           AppHeader(
             title: 'Seleccionar cliente',
-            subtitle: 'Asigna un cliente a la venta',
+            subtitle: widget.subtitle,
             height: 166,
             showBackButton: true,
             content: TextField(
               controller: _search,
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                hintText: 'Nombre, RFC, teléfono o correo',
+                hintText: 'Nombre, teléfono o correo',
                 prefixIcon: const Icon(Icons.search_rounded),
                 filled: true,
                 fillColor: Colors.white,
@@ -61,7 +66,6 @@ class _ClientSelectionScreenState extends ConsumerState<ClientSelectionScreen> {
                       if (!client.isActive) return false;
                       return query.isEmpty ||
                           client.name.toLowerCase().contains(query) ||
-                          client.rfc.toLowerCase().contains(query) ||
                           client.email.toLowerCase().contains(query) ||
                           client.phone.contains(query);
                     })
@@ -136,7 +140,7 @@ class _ClientOption extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'RFC ${client.rfc}${client.phone.isEmpty ? '' : '  •  ${client.phone}'}',
+                    _contact(client),
                     style: const TextStyle(
                       color: AppColors.textGrey,
                       fontSize: 11.5,
@@ -176,3 +180,11 @@ String _initials(String name) => name
     .map((part) => part[0].toUpperCase())
     .join();
 String _money(double value) => '\$${value.toStringAsFixed(2)}';
+
+String _contact(Client client) {
+  final values = [
+    if (client.phone.isNotEmpty) client.phone,
+    if (client.email.isNotEmpty) client.email,
+  ];
+  return values.isEmpty ? 'Sin datos de contacto' : values.join('  •  ');
+}

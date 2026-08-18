@@ -6,16 +6,19 @@ import 'package:kommerze_mobile/core/storage/secure_storage_provider.dart';
 import 'package:kommerze_mobile/features/auth/data/datasources/auth_local.dart';
 import 'package:kommerze_mobile/features/branch_operation/data/datasources/branch_operation_local_data_source.dart';
 import 'package:kommerze_mobile/features/branch_operation/domain/entities/branch_operation_state.dart';
+import 'package:kommerze_mobile/features/inventory/data/repositories/inventory_repository.dart';
 
 class BranchOperationRepository {
   final BranchOperationLocalDataSource local;
   final FlutterSecureStorage secureStorage;
   final AuthLocal authLocal;
+  final InventoryRepository inventoryRepository;
 
   const BranchOperationRepository(
     this.local,
     this.secureStorage,
     this.authLocal,
+    this.inventoryRepository,
   );
 
   Future<BranchOperationState> getState() async {
@@ -46,6 +49,10 @@ class BranchOperationRepository {
   }
 
   Future<BranchOperationState> close(String operationGuid) async {
+    // El cierre sólo se confirma después de que Cloud recibe la fotografía
+    // final del inventario. Si falla la red, la jornada permanece abierta y
+    // el usuario puede reintentar sin perder la oportunidad de respaldarla.
+    await inventoryRepository.backupInventory();
     await local.close(
       operationGuid: operationGuid,
       userId: await _currentUserId(),
@@ -89,5 +96,6 @@ final branchOperationRepositoryProvider = Provider<BranchOperationRepository>((
     ref.read(branchOperationLocalDataSourceProvider),
     ref.read(secureStorageProvider),
     ref.read(authLocalProvider),
+    ref.read(inventoryRepositoryProvider),
   );
 });

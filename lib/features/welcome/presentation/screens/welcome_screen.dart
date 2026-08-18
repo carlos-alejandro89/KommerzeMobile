@@ -10,6 +10,11 @@ import 'package:kommerze_mobile/features/license/presentation/guards/license_gua
 import 'package:kommerze_mobile/features/branch_operation/presentation/guards/branch_operation_guard.dart';
 import 'package:kommerze_mobile/features/sales_history/domain/entities/sale_history_item.dart';
 import 'package:kommerze_mobile/features/sales_history/presentation/controllers/sales_history_controller.dart';
+import 'package:kommerze_mobile/features/sales_history/data/repositories/sales_history_repository.dart';
+import 'package:kommerze_mobile/features/sales_history/presentation/widgets/cancel_sale_confirmation_sheet.dart';
+import 'package:kommerze_mobile/features/inventory/presentation/controllers/inventory_controller.dart';
+import 'package:kommerze_mobile/features/branch_operation/presentation/controllers/branch_operation_controller.dart';
+import 'package:kommerze_mobile/core/widgets/app_popup_menu_label.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum _MenuLayout { list, grid }
@@ -167,6 +172,12 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       await _openSales();
       return;
     }
+    if (index == 2) {
+      final allowed = await LicenseGuard.ensureActive(context, ref);
+      if (!allowed || !mounted) return;
+      context.push(AppConstants.reportsRoute);
+      return;
+    }
     if (index != 0) {
       await _openProtectedOption();
       return;
@@ -216,8 +227,18 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
       context.push(AppConstants.collectionsScreenRoute);
       return;
     }
+    if (module.title == 'Préstamos') {
+      final operationOpen = await BranchOperationGuard.ensureOpen(context, ref);
+      if (!operationOpen || !mounted) return;
+      context.push(AppConstants.loansRoute);
+      return;
+    }
     if (module.title == 'Sync') {
       context.push(AppConstants.catalogSyncScreenRoute);
+      return;
+    }
+    if (module.title == 'Reportes') {
+      context.push(AppConstants.reportsRoute);
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1040,7 +1061,14 @@ class _RecentActivity extends ConsumerWidget {
                 : Column(
                     children: [
                       for (var index = 0; index < items.length; index++) ...[
-                        _RecentSaleTile(item: items[index]),
+                        _RecentSaleTile(
+                          item: items[index],
+                          onCancel:
+                              items[index].statusName.toLowerCase() ==
+                                  'cancelado'
+                              ? null
+                              : () => _cancelSale(context, ref, items[index]),
+                        ),
                         if (index < items.length - 1) const Divider(height: 18),
                       ],
                     ],
@@ -1050,11 +1078,31 @@ class _RecentActivity extends ConsumerWidget {
       ),
     );
   }
+
+  Future<void> _cancelSale(
+    BuildContext context,
+    WidgetRef ref,
+    SaleHistoryItem item,
+  ) async {
+    final cancelled = await showCancelSaleConfirmationSheet(
+      context: context,
+      sale: item,
+      onConfirm: () =>
+          ref.read(salesHistoryRepositoryProvider).cancelSale(item.orderGuid),
+    );
+    if (!cancelled || !context.mounted) return;
+    ref.invalidate(recentSalesProvider);
+    ref.invalidate(salesHistoryProvider);
+    ref.invalidate(dailySalesAnalyticsProvider);
+    ref.invalidate(inventoryControllerProvider);
+    ref.invalidate(branchOperationControllerProvider);
+  }
 }
 
 class _RecentSaleTile extends StatelessWidget {
   final SaleHistoryItem item;
-  const _RecentSaleTile({required this.item});
+  final VoidCallback? onCancel;
+  const _RecentSaleTile({required this.item, required this.onCancel});
 
   @override
   Widget build(BuildContext context) => Row(
@@ -1118,6 +1166,37 @@ class _RecentSaleTile extends StatelessWidget {
           ),
         ],
       ),
+      if (onCancel != null)
+        SizedBox(
+          width: 34,
+          height: 34,
+          child: PopupMenuButton<String>(
+            tooltip: 'Opciones de venta',
+            padding: EdgeInsets.zero,
+            color: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            elevation: 3,
+            shape: appPopupMenuShape(),
+            onSelected: (value) {
+              if (value == 'cancel') onCancel!();
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'cancel',
+                child: AppPopupMenuLabel(
+                  icon: Icons.cancel_outlined,
+                  text: 'Cancelar venta',
+                  color: AppColors.error,
+                ),
+              ),
+            ],
+            icon: const Icon(
+              Icons.more_vert_rounded,
+              color: AppColors.navySoft,
+              size: 21,
+            ),
+          ),
+        ),
     ],
   );
 }
@@ -1451,6 +1530,18 @@ const _moduleItems = [
     'Cuentas por cobrar y abonos',
     Icons.request_quote_rounded,
     [Color(0xFF23A66F), Color(0xFF087A45)],
+  ),
+  _QuickData(
+    'Préstamos',
+    'Efectivo prestado a clientes',
+    Icons.payments_outlined,
+    [Color(0xFFEE8A35), Color(0xFFD85A1A)],
+  ),
+  _QuickData(
+    'Reportes',
+    'Utilidad y desempeño por operación',
+    Icons.bar_chart_rounded,
+    [Color(0xFF4361D8), Color(0xFF26389A)],
   ),
   _QuickData('Sync', 'Descarga y actualiza catálogos', Icons.sync_rounded, [
     Color(0xFF3D67D8),

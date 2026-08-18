@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
+import 'package:kommerze_mobile/core/widgets/payment_method_card.dart';
 import 'package:kommerze_mobile/features/checkout/domain/entities/sale_payment.dart';
 
 class PaymentDraft {
@@ -140,8 +141,10 @@ class _AddPaymentSheetState extends State<AddPaymentSheet> {
                           widget.availableCredit <= 0;
                       return SizedBox(
                         width: itemWidth,
-                        child: _PaymentMethodButton(
-                          method: method,
+                        child: PaymentMethodCard(
+                          label: method.label,
+                          icon: _icon(method),
+                          color: _methodColor(method),
                           selected: _method == method,
                           enabled: !disabled,
                           onTap: () => _select(method),
@@ -304,103 +307,6 @@ class _AddPaymentSheetState extends State<AddPaymentSheet> {
       ),
     ),
   );
-}
-
-class _PaymentMethodButton extends StatelessWidget {
-  final PaymentMethod method;
-  final bool selected;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  const _PaymentMethodButton({
-    required this.method,
-    required this.selected,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _methodColor(method);
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 180),
-      opacity: enabled ? 1 : .42,
-      child: Material(
-        color: selected
-            ? color.withValues(alpha: .10)
-            : AppColors.primarySurface,
-        borderRadius: BorderRadius.circular(15),
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          borderRadius: BorderRadius.circular(15),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            height: 92,
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(
-                color: selected ? color : Colors.transparent,
-                width: 1.5,
-              ),
-            ),
-            child: Stack(
-              children: [
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 39,
-                        height: 39,
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: selected ? .17 : .10),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(_icon(method), color: color, size: 20),
-                      ),
-                      const SizedBox(height: 7),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          method.label,
-                          style: TextStyle(
-                            color: selected ? color : AppColors.navy,
-                            fontSize: 11.5,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (selected)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      width: 18,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.check_rounded,
-                        color: Colors.white,
-                        size: 12,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 IconData _icon(PaymentMethod method) => switch (method) {

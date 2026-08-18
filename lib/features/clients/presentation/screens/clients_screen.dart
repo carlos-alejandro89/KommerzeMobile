@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
+import 'package:kommerze_mobile/core/widgets/app_popup_menu_label.dart';
 import 'package:kommerze_mobile/core/constants/app_constants.dart';
 import 'package:kommerze_mobile/core/widgets/app_header.dart';
 import 'package:kommerze_mobile/features/clients/domain/entities/client.dart';
@@ -46,7 +47,7 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
                 onChanged: (_) => setState(() {}),
                 style: const TextStyle(color: AppColors.navy, fontSize: 13),
                 decoration: InputDecoration(
-                  hintText: 'Buscar por nombre, RFC o correo...',
+                  hintText: 'Buscar por nombre, correo o teléfono...',
                   prefixIcon: const Icon(Icons.search_rounded),
                   suffixIcon: _searchController.text.isEmpty
                       ? null
@@ -189,7 +190,6 @@ class _ClientsScreenState extends ConsumerState<ClientsScreen> {
     return clients
         .where((client) {
           return client.name.toLowerCase().contains(query) ||
-              client.rfc.toLowerCase().contains(query) ||
               client.email.toLowerCase().contains(query) ||
               client.phone.toLowerCase().contains(query);
         })
@@ -389,12 +389,7 @@ class _ClientCard extends StatelessWidget {
                       color: Colors.white,
                       surfaceTintColor: Colors.transparent,
                       elevation: 3,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        side: BorderSide(
-                          color: AppColors.borderGrey.withValues(alpha: .8),
-                        ),
-                      ),
+                      shape: appPopupMenuShape(),
                       icon: const Icon(
                         Icons.more_vert_rounded,
                         color: AppColors.navySoft,
@@ -413,7 +408,7 @@ class _ClientCard extends StatelessWidget {
                       itemBuilder: (_) => [
                         const PopupMenuItem(
                           value: _ClientAction.edit,
-                          child: _ClientMenuLabel(
+                          child: AppPopupMenuLabel(
                             icon: Icons.edit_outlined,
                             text: 'Editar',
                             color: AppColors.primaryBlue,
@@ -421,7 +416,7 @@ class _ClientCard extends StatelessWidget {
                         ),
                         PopupMenuItem(
                           value: _ClientAction.toggle,
-                          child: _ClientMenuLabel(
+                          child: AppPopupMenuLabel(
                             icon: client.isActive
                                 ? Icons.pause_circle_outline_rounded
                                 : Icons.check_circle_outline_rounded,
@@ -434,7 +429,7 @@ class _ClientCard extends StatelessWidget {
                         const PopupMenuDivider(height: 1),
                         const PopupMenuItem(
                           value: _ClientAction.delete,
-                          child: _ClientMenuLabel(
+                          child: AppPopupMenuLabel(
                             icon: Icons.delete_outline_rounded,
                             text: 'Eliminar',
                             color: AppColors.error,
@@ -459,11 +454,21 @@ class _ClientCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: _ClientDatum(label: 'RFC', value: client.rfc),
+                    child: _ClientDatum(
+                      label: 'Correo',
+                      value: client.email.isEmpty
+                          ? 'No registrado'
+                          : client.email,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _ClientDatum(label: 'Teléfono', value: client.phone),
+                    child: _ClientDatum(
+                      label: 'Teléfono',
+                      value: client.phone.isEmpty
+                          ? 'No registrado'
+                          : client.phone,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -496,41 +501,6 @@ class _ClientCard extends StatelessWidget {
 }
 
 enum _ClientAction { edit, toggle, delete }
-
-class _ClientMenuLabel extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Color color;
-  const _ClientMenuLabel({
-    required this.icon,
-    required this.text,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Container(
-        width: 30,
-        height: 30,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: .09),
-          borderRadius: BorderRadius.circular(9),
-        ),
-        child: Icon(icon, color: color, size: 18),
-      ),
-      const SizedBox(width: 10),
-      Text(
-        text,
-        style: TextStyle(
-          color: color == AppColors.error ? AppColors.error : AppColors.navy,
-          fontSize: 12.5,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    ],
-  );
-}
 
 class _Status extends StatelessWidget {
   final bool active;

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kommerze_mobile/core/storage/app_database.dart';
 import 'package:kommerze_mobile/features/sales_history/domain/entities/sale_history_item.dart';
 import 'package:kommerze_mobile/features/sales_history/domain/entities/sale_detail.dart';
+import 'package:sqflite/sqflite.dart';
 
 class SalesHistoryLocalDataSource {
   final AppDatabase database;
@@ -198,6 +199,103 @@ class SalesHistoryLocalDataSource {
     );
   }
 
+  Future<void> cancelSale(String orderGuid) async {
+    final db = await database.instance;
+    await db.transaction((transaction) async {
+      final orders = await transaction.rawQuery(
+        '''
+        SELECT p.estatus_guid, p.tipo_pedido_guid,
+          LOWER(COALESCE(e.nombre, '')) AS estatus
+        FROM pedidos p
+        LEFT JOIN estatus e ON e.guid = p.estatus_guid
+        WHERE p.pedido_guid = ?
+        LIMIT 1
+        ''',
+        [orderGuid],
+      );
+      if (orders.isEmpty) {
+        throw const SaleCancellationException(
+          'La venta ya no está disponible.',
+        );
+      }
+      final order = orders.first;
+      if (order['estatus'] == 'cancelado') return;
+      if (order['tipo_pedido_guid'] == 'c82164a9-616c-4148-80fd-c4702d8a7cca') {
+        throw const SaleCancellationException(
+          'Una compra no puede cancelarse desde el historial de ventas.',
+        );
+      }
+
+      final collected = await transaction.rawQuery(
+        '''
+        SELECT COUNT(*) AS total
+        FROM cuentas_por_cobrar cc
+        INNER JOIN aplicaciones_cobro ac ON ac.cuenta_guid = cc.cuenta_guid
+        INNER JOIN cobros_cliente co ON co.cobro_guid = ac.cobro_guid
+        WHERE cc.pedido_guid = ? AND co.cancelado = 0
+        ''',
+        [orderGuid],
+      );
+      if (_integer(collected.first['total']) > 0) {
+        throw const SaleCancellationException(
+          'La venta tiene abonos aplicados. Cancela primero los cobros relacionados.',
+        );
+      }
+
+      final statuses = await transaction.query(
+        'estatus',
+        columns: const ['guid'],
+        where: "LOWER(nombre) = 'cancelado' AND deleted_at IS NULL",
+        limit: 1,
+      );
+      if (statuses.isEmpty) {
+        throw const SaleCancellationException(
+          'Sincroniza el catálogo Estatus antes de cancelar la venta.',
+        );
+      }
+      final details = await transaction.query(
+        'pedido_detalle',
+        columns: const ['nivel_guid', 'cantidad'],
+        where: 'pedido_guid = ?',
+        whereArgs: [orderGuid],
+      );
+      final now = DateTime.now().toUtc().toIso8601String();
+      for (final detail in details) {
+        final updated = await transaction.rawUpdate(
+          '''
+          UPDATE inventario
+          SET existencia = existencia + ?, updated_at = ?
+          WHERE nivel_guid = ?
+          ''',
+          [detail['cantidad'], now, detail['nivel_guid']],
+        );
+        if (updated != 1) {
+          throw const SaleCancellationException(
+            'No fue posible devolver todos los artículos al inventario.',
+          );
+        }
+      }
+      await transaction.update(
+        'pedidos',
+        {
+          'estatus_guid': statuses.first['guid'],
+          'sync': 0,
+          'enviado': 0,
+          'updated_at': now,
+        },
+        where: 'pedido_guid = ?',
+        whereArgs: [orderGuid],
+        conflictAlgorithm: ConflictAlgorithm.abort,
+      );
+      await transaction.update(
+        'cuentas_por_cobrar',
+        {'estatus_guid': statuses.first['guid'], 'sync': 0, 'updated_at': now},
+        where: 'pedido_guid = ?',
+        whereArgs: [orderGuid],
+      );
+    });
+  }
+
   SaleHistoryItem _fromMap(Map<String, Object?> row) => SaleHistoryItem(
     orderGuid: row['pedido_guid']?.toString() ?? '',
     folio: _integer(row['folio']),
@@ -239,3 +337,10 @@ final salesHistoryLocalDataSourceProvider =
     Provider<SalesHistoryLocalDataSource>(
       (ref) => SalesHistoryLocalDataSource(ref.read(appDatabaseProvider)),
     );
+
+class SaleCancellationException implements Exception {
+  final String message;
+  const SaleCancellationException(this.message);
+  @override
+  String toString() => message;
+}

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:kommerze_mobile/core/constants/app_constants.dart';
 import 'package:kommerze_mobile/core/storage/app_database.dart';
 import 'package:kommerze_mobile/features/sales/domain/entities/sale_cart_item.dart';
 import 'package:kommerze_mobile/features/sales/domain/entities/sale_order.dart';
@@ -7,7 +8,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
 class SalesLocalDataSource {
-  static const publicCustomerGuid = '550e8400-e29b-41d4-a716-446655440000';
+  static const publicCustomerGuid = AppConstants.publicCustomerGuid;
   static const purchaseOrderTypeGuid = 'c82164a9-616c-4148-80fd-c4702d8a7cca';
   final AppDatabase database;
   const SalesLocalDataSource(this.database);

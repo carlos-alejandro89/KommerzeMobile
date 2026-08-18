@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
 import 'package:kommerze_mobile/core/constants/app_constants.dart';
 import 'package:kommerze_mobile/core/widgets/app_header.dart';
+import 'package:kommerze_mobile/features/collections/data/repositories/collections_repository.dart';
 import 'package:kommerze_mobile/features/collections/domain/entities/collection_models.dart';
 import 'package:kommerze_mobile/features/collections/presentation/controllers/collections_controller.dart';
 
@@ -17,6 +18,7 @@ class CollectionsScreen extends ConsumerStatefulWidget {
 
 class _CollectionsScreenState extends ConsumerState<CollectionsScreen> {
   final _search = TextEditingController();
+  bool _isRecovering = false;
 
   @override
   void dispose() {
@@ -37,6 +39,24 @@ class _CollectionsScreenState extends ConsumerState<CollectionsScreen> {
             height: 174 + MediaQuery.paddingOf(context).top,
             showBackButton: true,
             onBack: context.pop,
+            actions: [
+              IconButton(
+                tooltip: 'Recuperar cobranza de la sucursal',
+                onPressed: _isRecovering ? null : _recoverCollections,
+                icon: _isRecovering
+                    ? const SizedBox.square(
+                        dimension: 21,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.cloud_download_outlined,
+                        color: Colors.white,
+                      ),
+              ),
+            ],
             content: SizedBox(
               height: 48,
               child: TextField(
@@ -44,7 +64,7 @@ class _CollectionsScreenState extends ConsumerState<CollectionsScreen> {
                 onChanged: (_) => setState(() {}),
                 style: const TextStyle(color: AppColors.navy, fontSize: 13),
                 decoration: InputDecoration(
-                  hintText: 'Buscar cliente, RFC o teléfono...',
+                  hintText: 'Buscar cliente, correo o teléfono...',
                   prefixIcon: const Icon(Icons.search_rounded),
                   suffixIcon: _search.text.isEmpty
                       ? null
@@ -87,12 +107,12 @@ class _CollectionsScreenState extends ConsumerState<CollectionsScreen> {
         .where((client) {
           return query.isEmpty ||
               client.name.toLowerCase().contains(query) ||
-              client.rfc.toLowerCase().contains(query) ||
+              client.email.toLowerCase().contains(query) ||
               client.phone.toLowerCase().contains(query);
         })
         .toList(growable: false);
     return RefreshIndicator(
-      onRefresh: () async => ref.invalidate(collectionsDashboardProvider),
+      onRefresh: _recoverCollections,
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
@@ -181,6 +201,46 @@ class _CollectionsScreenState extends ConsumerState<CollectionsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _recoverCollections() async {
+    if (_isRecovering) return;
+    setState(() => _isRecovering = true);
+    try {
+      final result = await ref
+          .read(collectionsRepositoryProvider)
+          .recoverByActiveBranch();
+      ref.invalidate(collectionsDashboardProvider);
+      if (!mounted) return;
+      final details = <String>[
+        if (result.preservedPending > 0)
+          '${result.preservedPending} cambios locales pendientes fueron conservados',
+        if (result.omittedMissingReferences > 0)
+          '${result.omittedMissingReferences} registros se omitieron por referencias locales faltantes',
+      ];
+      final message = result.received == 0
+          ? 'La sucursal no tiene cobranza registrada en la nube.'
+          : '${result.saved} de ${result.received} registros recuperados'
+                '${details.isEmpty ? '.' : '. ${details.join('. ')}.'}';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString()),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isRecovering = false);
+    }
   }
 }
 
@@ -311,7 +371,8 @@ class _ClientDebtCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      '${client.openAccounts} ${client.openAccounts == 1 ? 'cuenta' : 'cuentas'} · ${client.rfc}',
+                      '${client.openAccounts} ${client.openAccounts == 1 ? 'cuenta' : 'cuentas'}'
+                      '${client.phone.isEmpty ? '' : ' · ${client.phone}'}',
                       style: const TextStyle(
                         color: AppColors.textGrey,
                         fontSize: 11,

@@ -22,6 +22,7 @@ class ClientsLocalDataSource {
     final now = DateTime.now().toUtc().toIso8601String();
     await db.insert('clientes', {
       'guid': guid,
+      'rfc': '', // Columna legada; el RFC ya no pertenece al cliente.
       ..._draftMap(draft),
       'activo': 1,
       'created_at': now,
@@ -77,7 +78,7 @@ class ClientsLocalDataSource {
         batch.insert('clientes', {
           'guid': client.guid,
           'nombre': client.name,
-          'rfc': client.rfc,
+          'rfc': '',
           'correo': client.email,
           'telefono': client.phone,
           'monto_credito': client.creditAmount,
@@ -114,7 +115,7 @@ class ClientsLocalDataSource {
 
   Map<String, Object?> _draftMap(ClientDraft draft) => {
     'nombre': draft.name.trim(),
-    'rfc': draft.rfc.trim().toUpperCase(),
+    'rfc': '',
     'correo': draft.email.trim().toLowerCase(),
     'telefono': draft.phone.trim(),
     'monto_credito': draft.creditAmount,

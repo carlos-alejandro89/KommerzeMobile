@@ -12,6 +12,12 @@ class ApiConstants {
   static const clientsListPath = '/clientes/listar';
   static const usersPath = '/catalogos/usuarios/get';
   static const salesRegisterPath = '/pedidos/registrar';
+  static const collectionsSyncPath = '/cobranza/sincronizar';
+  static String collectionsByBranchPath(String branchGuid) =>
+      '/cobranza/sucursal/$branchGuid';
+  static const loansSyncPath = '/prestamos/sincronizar';
+  static String loansByBranchPath(String branchGuid) =>
+      '/prestamos/sucursal/$branchGuid';
   static const connectTimeout = Duration(seconds: 20);
   static const receiveTimeout = Duration(seconds: 20);
 }

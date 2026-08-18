@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kommerze_mobile/core/storage/app_database.dart';
+import 'package:kommerze_mobile/features/collections/data/models/collection_sync_batch.dart';
 import 'package:kommerze_mobile/features/collections/domain/entities/collection_models.dart';
 import 'package:kommerze_mobile/features/collections/domain/services/collection_allocation_service.dart';
 import 'package:sqflite/sqflite.dart';
@@ -133,10 +134,12 @@ class CollectionsLocalDataSource {
     final rows = await db.query(
       'formas_pago',
       columns: const ['guid', 'clave', 'descripcion'],
-      where: "clave <> '99' AND deleted_at IS NULL",
+      where:
+          "clave IN ('01', '02', '03', '04', '99') "
+          'AND deleted_at IS NULL',
       orderBy:
-          "CASE clave WHEN '01' THEN 1 WHEN '03' THEN 2 "
-          "WHEN '04' THEN 3 WHEN '28' THEN 4 WHEN '02' THEN 5 ELSE 9 END, clave",
+          "CASE clave WHEN '01' THEN 1 WHEN '04' THEN 2 "
+          "WHEN '03' THEN 3 WHEN '02' THEN 4 WHEN '99' THEN 5 END",
     );
     return rows
         .map(
@@ -228,16 +231,29 @@ class CollectionsLocalDataSource {
           'forma_pago_guid': payment.paymentForm.guid,
           'monto': payment.amount,
           'referencia': payment.reference.trim(),
+          'sync': 0,
         });
       }
       for (final allocation in preview.allocations) {
-        await transaction.insert('aplicaciones_cobro', {
-          'aplicacion_guid': const Uuid().v4(),
-          'cobro_guid': collectionGuid,
-          'cuenta_guid': allocation.accountGuid,
-          'monto_aplicado': allocation.appliedAmount,
-          'created_at': now.toIso8601String(),
-        });
+        if (allocation.source == ReceivableSource.loan) {
+          await transaction.insert('aplicaciones_prestamo', {
+            'aplicacion_guid': const Uuid().v4(),
+            'cobro_guid': collectionGuid,
+            'prestamo_guid': allocation.loanGuid,
+            'monto_aplicado': allocation.appliedAmount,
+            'created_at': now.toIso8601String(),
+            'sync': 0,
+          });
+        } else {
+          await transaction.insert('aplicaciones_cobro', {
+            'aplicacion_guid': const Uuid().v4(),
+            'cobro_guid': collectionGuid,
+            'cuenta_guid': allocation.accountGuid,
+            'monto_aplicado': allocation.appliedAmount,
+            'created_at': now.toIso8601String(),
+            'sync': 0,
+          });
+        }
       }
       await _refreshStatuses(transaction, clientGuid);
       return CollectionReceipt(
@@ -250,17 +266,375 @@ class CollectionsLocalDataSource {
     });
   }
 
+  Future<CollectionSyncBatch> getPendingSyncBatch() async {
+    await backfillCreditSales();
+    final db = await database.instance;
+    final accounts = await db.query(
+      'cuentas_por_cobrar',
+      where: 'sync = 0',
+      orderBy: 'created_at, cuenta_guid',
+    );
+    final collections = await db.rawQuery('''
+      SELECT co.*,
+        co.saldo_disponible + COALESCE((
+          SELECT SUM(ap.monto_aplicado)
+          FROM aplicaciones_prestamo ap
+          WHERE ap.cobro_guid = co.cobro_guid
+        ), 0) AS saldo_sync
+      FROM cobros_cliente co
+      WHERE co.sync = 0
+      ORDER BY co.created_at, co.cobro_guid
+    ''');
+    final paymentForms = await db.query(
+      'cobro_formas_pago',
+      where: 'sync = 0',
+      orderBy: 'pago_cobro_guid',
+    );
+    final applications = await db.query(
+      'aplicaciones_cobro',
+      where: 'sync = 0',
+      orderBy: 'created_at, aplicacion_guid',
+    );
+    return CollectionSyncBatch(
+      accounts: accounts
+          .map(
+            (row) => <String, Object?>{
+              'cuentaGuid': row['cuenta_guid'],
+              'pedidoGuid': row['pedido_guid'],
+              'clienteGuid': row['cliente_guid'],
+              'estatusGuid': row['estatus_guid'],
+              'importeOriginal': row['importe_original'],
+              'fechaEmision': row['fecha_emision'],
+              'fechaVencimiento': row['fecha_vencimiento'],
+              'bloqueada': row['bloqueada'] == 1,
+              'createdAt': row['created_at'],
+              'updatedAt': row['updated_at'],
+            },
+          )
+          .toList(growable: false),
+      collections: collections
+          .map(
+            (row) => <String, Object?>{
+              'cobroGuid': row['cobro_guid'],
+              'sucursalGuid': row['sucursal_guid'],
+              'clienteGuid': row['cliente_guid'],
+              'usuarioGuid': row['usuario_guid'],
+              'fecha': row['fecha'],
+              'montoTotal': row['monto_total'],
+              // Cloud recibe provisionalmente como saldo la porción destinada
+              // a préstamos; /prestamos/sincronizar la consume después.
+              'saldoDisponible': row['saldo_sync'],
+              'referencia': row['referencia'],
+              'cancelado': row['cancelado'] == 1,
+              'fechaCancelacion': row['fecha_cancelacion'],
+              'motivoCancelacion': row['motivo_cancelacion'],
+              'createdAt': row['created_at'],
+              'updatedAt': row['updated_at'],
+            },
+          )
+          .toList(growable: false),
+      paymentForms: paymentForms
+          .map(
+            (row) => <String, Object?>{
+              'pagoCobroGuid': row['pago_cobro_guid'],
+              'cobroGuid': row['cobro_guid'],
+              'formaPagoGuid': row['forma_pago_guid'],
+              'monto': row['monto'],
+              'referencia': row['referencia'],
+            },
+          )
+          .toList(growable: false),
+      applications: applications
+          .map(
+            (row) => <String, Object?>{
+              'aplicacionGuid': row['aplicacion_guid'],
+              'cobroGuid': row['cobro_guid'],
+              'cuentaGuid': row['cuenta_guid'],
+              'montoAplicado': row['monto_aplicado'],
+              'createdAt': row['created_at'],
+            },
+          )
+          .toList(growable: false),
+    );
+  }
+
+  Future<void> markSyncCompleted(CollectionSyncResult result) async {
+    final db = await database.instance;
+    await db.transaction((transaction) async {
+      await _markRows(
+        transaction,
+        table: 'cuentas_por_cobrar',
+        guidColumn: 'cuenta_guid',
+        guids: result.accounts,
+      );
+      await _markRows(
+        transaction,
+        table: 'cobros_cliente',
+        guidColumn: 'cobro_guid',
+        guids: result.collections,
+      );
+      await _markRows(
+        transaction,
+        table: 'cobro_formas_pago',
+        guidColumn: 'pago_cobro_guid',
+        guids: result.paymentForms,
+      );
+      await _markRows(
+        transaction,
+        table: 'aplicaciones_cobro',
+        guidColumn: 'aplicacion_guid',
+        guids: result.applications,
+      );
+    });
+  }
+
+  Future<String> getBranchGuid() async {
+    final db = await database.instance;
+    final rows = await db.query(
+      'sucursales',
+      columns: const ['guid'],
+      limit: 1,
+    );
+    final guid = rows.isEmpty ? '' : rows.first['guid']?.toString() ?? '';
+    if (guid.isEmpty) {
+      throw const CollectionsLocalException(
+        'No existe una sucursal activa para recuperar la cobranza.',
+      );
+    }
+    return guid;
+  }
+
+  Future<CollectionsRecoveryResult> mergeCloudSnapshot(
+    CollectionSyncBatch snapshot,
+  ) async {
+    final db = await database.instance;
+    return db.transaction((transaction) async {
+      final now = DateTime.now().toUtc().toIso8601String();
+      final clientGuids = await _guidSet(transaction, 'clientes', 'guid');
+      final orderGuids = await _guidSet(transaction, 'pedidos', 'pedido_guid');
+      final statusGuids = await _guidSet(transaction, 'estatus', 'guid');
+      final paymentFormGuids = await _guidSet(
+        transaction,
+        'formas_pago',
+        'guid',
+      );
+      final userNames = <String, String>{
+        for (final row in await transaction.query(
+          'usuarios',
+          columns: const ['guid', 'nombre'],
+        ))
+          if ((row['guid']?.toString() ?? '').isNotEmpty)
+            row['guid'].toString(): row['nombre']?.toString() ?? 'Usuario',
+      };
+      final accountGuids = await _guidSet(
+        transaction,
+        'cuentas_por_cobrar',
+        'cuenta_guid',
+      );
+      final collectionGuids = await _guidSet(
+        transaction,
+        'cobros_cliente',
+        'cobro_guid',
+      );
+      final pendingAccounts = await _pendingGuidSet(
+        transaction,
+        'cuentas_por_cobrar',
+        'cuenta_guid',
+      );
+      final pendingCollections = await _pendingGuidSet(
+        transaction,
+        'cobros_cliente',
+        'cobro_guid',
+      );
+      final pendingPaymentForms = await _pendingGuidSet(
+        transaction,
+        'cobro_formas_pago',
+        'pago_cobro_guid',
+      );
+      final pendingApplications = await _pendingGuidSet(
+        transaction,
+        'aplicaciones_cobro',
+        'aplicacion_guid',
+      );
+
+      var saved = 0;
+      var preserved = 0;
+      var omitted = 0;
+
+      for (final row in snapshot.accounts) {
+        final guid = _text(row, 'cuentaGuid');
+        final clientGuid = _text(row, 'clienteGuid');
+        final orderGuid = _text(row, 'pedidoGuid');
+        final statusGuid = _text(row, 'estatusGuid');
+        if (guid.isEmpty ||
+            !clientGuids.contains(clientGuid) ||
+            !orderGuids.contains(orderGuid) ||
+            !statusGuids.contains(statusGuid)) {
+          omitted++;
+          continue;
+        }
+        if (pendingAccounts.contains(guid)) {
+          preserved++;
+          continue;
+        }
+        await _upsertCloudRow(
+          transaction,
+          table: 'cuentas_por_cobrar',
+          guidColumn: 'cuenta_guid',
+          guid: guid,
+          values: {
+            'cuenta_guid': guid,
+            'cliente_guid': clientGuid,
+            'pedido_guid': orderGuid,
+            'importe_original': _value(row, 'importeOriginal'),
+            'fecha_emision': _value(row, 'fechaEmision'),
+            'fecha_vencimiento': _value(row, 'fechaVencimiento'),
+            'estatus_guid': statusGuid,
+            'bloqueada': _boolInt(_value(row, 'bloqueada')),
+            'sync': 1,
+            'created_at': _value(row, 'createdAt') ?? now,
+            'updated_at': _value(row, 'updatedAt') ?? now,
+          },
+        );
+        accountGuids.add(guid);
+        saved++;
+      }
+
+      for (final row in snapshot.collections) {
+        final guid = _text(row, 'cobroGuid');
+        final clientGuid = _text(row, 'clienteGuid');
+        if (guid.isEmpty || !clientGuids.contains(clientGuid)) {
+          omitted++;
+          continue;
+        }
+        if (pendingCollections.contains(guid)) {
+          preserved++;
+          continue;
+        }
+        final userGuid = _text(row, 'usuarioGuid');
+        await _upsertCloudRow(
+          transaction,
+          table: 'cobros_cliente',
+          guidColumn: 'cobro_guid',
+          guid: guid,
+          values: {
+            'cobro_guid': guid,
+            'sucursal_guid': _text(row, 'sucursalGuid'),
+            'cliente_guid': clientGuid,
+            'fecha': _value(row, 'fecha'),
+            'monto_total': _value(row, 'montoTotal'),
+            'saldo_disponible': _value(row, 'saldoDisponible') ?? 0,
+            'referencia': _value(row, 'referencia'),
+            'usuario_guid': userGuid.isEmpty ? null : userGuid,
+            'usuario_nombre': userNames[userGuid] ?? 'Usuario',
+            'cancelado': _boolInt(_value(row, 'cancelado')),
+            'fecha_cancelacion': _value(row, 'fechaCancelacion'),
+            'motivo_cancelacion': _value(row, 'motivoCancelacion'),
+            'sync': 1,
+            'created_at': _value(row, 'createdAt') ?? now,
+            'updated_at': _value(row, 'updatedAt') ?? now,
+          },
+        );
+        collectionGuids.add(guid);
+        saved++;
+      }
+
+      for (final row in snapshot.paymentForms) {
+        final guid = _text(row, 'pagoCobroGuid');
+        final collectionGuid = _text(row, 'cobroGuid');
+        final paymentFormGuid = _text(row, 'formaPagoGuid');
+        if (guid.isEmpty ||
+            !collectionGuids.contains(collectionGuid) ||
+            !paymentFormGuids.contains(paymentFormGuid)) {
+          omitted++;
+          continue;
+        }
+        if (pendingPaymentForms.contains(guid)) {
+          preserved++;
+          continue;
+        }
+        await _upsertCloudRow(
+          transaction,
+          table: 'cobro_formas_pago',
+          guidColumn: 'pago_cobro_guid',
+          guid: guid,
+          values: {
+            'pago_cobro_guid': guid,
+            'cobro_guid': collectionGuid,
+            'forma_pago_guid': paymentFormGuid,
+            'monto': _value(row, 'monto'),
+            'referencia': _value(row, 'referencia'),
+            'sync': 1,
+          },
+        );
+        saved++;
+      }
+
+      for (final row in snapshot.applications) {
+        final guid = _text(row, 'aplicacionGuid');
+        final collectionGuid = _text(row, 'cobroGuid');
+        final accountGuid = _text(row, 'cuentaGuid');
+        if (guid.isEmpty ||
+            !collectionGuids.contains(collectionGuid) ||
+            !accountGuids.contains(accountGuid)) {
+          omitted++;
+          continue;
+        }
+        if (pendingApplications.contains(guid)) {
+          preserved++;
+          continue;
+        }
+        await _upsertCloudRow(
+          transaction,
+          table: 'aplicaciones_cobro',
+          guidColumn: 'aplicacion_guid',
+          guid: guid,
+          values: {
+            'aplicacion_guid': guid,
+            'cobro_guid': collectionGuid,
+            'cuenta_guid': accountGuid,
+            'monto_aplicado': _value(row, 'montoAplicado'),
+            'created_at': _value(row, 'createdAt') ?? now,
+            'sync': 1,
+          },
+        );
+        saved++;
+      }
+
+      return CollectionsRecoveryResult(
+        received: snapshot.length,
+        saved: saved,
+        preservedPending: preserved,
+        omittedMissingReferences: omitted,
+      );
+    });
+  }
+
   Future<void> setAccountBlocked(String accountGuid, bool blocked) async {
     final db = await database.instance;
     final updated = await db.update(
       'cuentas_por_cobrar',
       {
         'bloqueada': blocked ? 1 : 0,
+        'sync': 0,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       },
       where: 'cuenta_guid = ?',
       whereArgs: [accountGuid],
     );
+    if (updated == 0) {
+      final loanUpdated = await db.update(
+        'prestamos_cliente',
+        {
+          'bloqueado': blocked ? 1 : 0,
+          'sync': 0,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        },
+        where: 'prestamo_guid = ?',
+        whereArgs: [accountGuid],
+      );
+      if (loanUpdated == 1) return;
+    }
     if (updated != 1) {
       throw const CollectionsLocalException(
         'No fue posible actualizar la cuenta.',
@@ -335,6 +709,12 @@ class CollectionsLocalDataSource {
         INNER JOIN cobros_cliente co ON co.cobro_guid = ac.cobro_guid
         WHERE co.cancelado = 0
         GROUP BY ac.cuenta_guid
+      ), applied_loans AS (
+        SELECT ap.prestamo_guid, SUM(ap.monto_aplicado) AS total
+        FROM aplicaciones_prestamo ap
+        INNER JOIN cobros_cliente co ON co.cobro_guid = ap.cobro_guid
+        WHERE co.cancelado = 0
+        GROUP BY ap.prestamo_guid
       ), balances AS (
         SELECT
           cc.cliente_guid, cc.fecha_vencimiento, cc.bloqueada,
@@ -343,6 +723,13 @@ class CollectionsLocalDataSource {
         LEFT JOIN applied a ON a.cuenta_guid = cc.cuenta_guid
         LEFT JOIN estatus cxe ON cxe.guid = cc.estatus_guid
         WHERE LOWER(COALESCE(cxe.nombre, '')) <> 'cancelado'
+        UNION ALL
+        SELECT
+          pr.cliente_guid, pr.fecha_vencimiento, pr.bloqueado,
+          MAX(pr.monto - COALESCE(al.total, 0), 0) AS saldo
+        FROM prestamos_cliente pr
+        LEFT JOIN applied_loans al ON al.prestamo_guid = pr.prestamo_guid
+        WHERE pr.cancelado = 0
       ), credits AS (
         SELECT cliente_guid, SUM(saldo_disponible) AS saldo_favor
         FROM cobros_cliente
@@ -350,7 +737,7 @@ class CollectionsLocalDataSource {
         GROUP BY cliente_guid
       )
       SELECT
-        c.guid, c.nombre, c.rfc, c.telefono, c.monto_credito,
+        c.guid, c.nombre, c.correo, c.telefono, c.monto_credito,
         COALESCE(SUM(b.saldo), 0) AS saldo,
         COALESCE(SUM(CASE WHEN b.fecha_vencimiento < ? THEN b.saldo ELSE 0 END), 0)
           AS vencido,
@@ -363,7 +750,7 @@ class CollectionsLocalDataSource {
       LEFT JOIN credits cr ON cr.cliente_guid = c.guid
       WHERE c.deleted_at IS NULL
         ${clientGuid == null ? '' : 'AND c.guid = ?'}
-      GROUP BY c.guid, c.nombre, c.rfc, c.telefono, c.monto_credito,
+      GROUP BY c.guid, c.nombre, c.correo, c.telefono, c.monto_credito,
         cr.saldo_favor
       ORDER BY vencido DESC, saldo DESC, c.nombre COLLATE NOCASE
     ''',
@@ -375,7 +762,7 @@ class CollectionsLocalDataSource {
     return CollectionClientSummary(
       clientGuid: row['guid']?.toString() ?? '',
       name: row['nombre']?.toString() ?? '',
-      rfc: row['rfc']?.toString() ?? '',
+      email: row['correo']?.toString() ?? '',
       phone: row['telefono']?.toString() ?? '',
       creditLimit: _decimal(row['monto_credito']),
       balance: _decimal(row['saldo']),
@@ -393,12 +780,12 @@ class CollectionsLocalDataSource {
   }) async {
     final rows = await database.rawQuery(
       '''
+      SELECT * FROM (
       SELECT
-        cc.cuenta_guid, cc.pedido_guid, cc.importe_original,
-        cc.fecha_emision, cc.fecha_vencimiento,
+        cc.cuenta_guid, cc.pedido_guid, NULL AS prestamo_guid,
+        cc.importe_original, cc.fecha_emision, cc.fecha_vencimiento,
         COALESCE(cxe.nombre, 'Sin estatus') AS estatus_nombre,
-        cc.bloqueada,
-        p.folio,
+        cc.bloqueada, p.folio, 'venta' AS origen,
         COALESCE((
           SELECT SUM(ac.monto_aplicado)
           FROM aplicaciones_cobro ac
@@ -417,9 +804,40 @@ class CollectionsLocalDataSource {
           INNER JOIN cobros_cliente co2 ON co2.cobro_guid = ac2.cobro_guid
           WHERE ac2.cuenta_guid = cc.cuenta_guid AND co2.cancelado = 0
         ), 0) > 0.001
-      ORDER BY cc.fecha_vencimiento, cc.fecha_emision, p.folio
+      UNION ALL
+      SELECT
+        pr.prestamo_guid AS cuenta_guid, '' AS pedido_guid,
+        pr.prestamo_guid, pr.monto AS importe_original,
+        pr.fecha AS fecha_emision, pr.fecha_vencimiento,
+        CASE
+          WHEN pr.monto - COALESCE((
+            SELECT SUM(ap.monto_aplicado)
+            FROM aplicaciones_prestamo ap
+            INNER JOIN cobros_cliente co ON co.cobro_guid = ap.cobro_guid
+            WHERE ap.prestamo_guid = pr.prestamo_guid AND co.cancelado = 0
+          ), 0) <= 0.001 THEN 'Liquidada'
+          WHEN pr.fecha_vencimiento < ? THEN 'Vencida'
+          ELSE 'Pendiente'
+        END AS estatus_nombre,
+        pr.bloqueado AS bloqueada, 0 AS folio, 'prestamo' AS origen,
+        COALESCE((
+          SELECT SUM(ap.monto_aplicado)
+          FROM aplicaciones_prestamo ap
+          INNER JOIN cobros_cliente co ON co.cobro_guid = ap.cobro_guid
+          WHERE ap.prestamo_guid = pr.prestamo_guid AND co.cancelado = 0
+        ), 0) AS abonado
+      FROM prestamos_cliente pr
+      WHERE pr.cliente_guid = ? AND pr.cancelado = 0
+        ${includeBlocked ? '' : 'AND pr.bloqueado = 0'}
+        AND pr.monto - COALESCE((
+          SELECT SUM(ap2.monto_aplicado)
+          FROM aplicaciones_prestamo ap2
+          INNER JOIN cobros_cliente co2 ON co2.cobro_guid = ap2.cobro_guid
+          WHERE ap2.prestamo_guid = pr.prestamo_guid AND co2.cancelado = 0
+        ), 0) > 0.001
+      ) ORDER BY fecha_vencimiento, fecha_emision, folio
     ''',
-      [clientGuid],
+      [clientGuid, DateTime.now().toUtc().toIso8601String(), clientGuid],
     );
     return rows
         .map(
@@ -435,6 +853,10 @@ class CollectionsLocalDataSource {
             ).toLocal(),
             status: row['estatus_nombre']?.toString() ?? 'Sin estatus',
             blocked: row['bloqueada'] == 1,
+            source: row['origen'] == 'prestamo'
+                ? ReceivableSource.loan
+                : ReceivableSource.sale,
+            loanGuid: row['prestamo_guid']?.toString(),
           ),
         )
         .toList(growable: false);
@@ -455,6 +877,10 @@ class CollectionsLocalDataSource {
           SELECT SUM(ac.monto_aplicado)
           FROM aplicaciones_cobro ac
           WHERE ac.cobro_guid = co.cobro_guid
+        ), 0) + COALESCE((
+          SELECT SUM(ap.monto_aplicado)
+          FROM aplicaciones_prestamo ap
+          WHERE ap.cobro_guid = co.cobro_guid
         ), 0) AS aplicado,
         COALESCE((
           SELECT GROUP_CONCAT(fp.clave || ' - ' || fp.descripcion, '|||')
@@ -539,6 +965,16 @@ class CollectionsLocalDataSource {
           AND LOWER(COALESCE(cxe.nombre, '')) <> 'cancelado'
         UNION ALL
         SELECT
+          pr.prestamo_guid AS guid,
+          NULL AS pedido_guid,
+          'cargo' AS tipo,
+          pr.fecha,
+          'Préstamo' AS descripcion,
+          pr.monto AS monto
+        FROM prestamos_cliente pr
+        WHERE pr.cliente_guid = ? AND pr.cancelado = 0
+        UNION ALL
+        SELECT
           co.cobro_guid AS guid,
           NULL AS pedido_guid,
           'abono' AS tipo,
@@ -550,7 +986,7 @@ class CollectionsLocalDataSource {
       )
       ORDER BY fecha, tipo DESC
     ''',
-      [clientGuid, clientGuid],
+      [clientGuid, clientGuid, clientGuid],
     );
     var balance = 0.0;
     final movements = <AccountStatementMovement>[];
@@ -648,6 +1084,89 @@ class CollectionsLocalDataSource {
     }
     return rows.first['guid']?.toString() ?? '';
   }
+
+  Future<void> _markRows(
+    DatabaseExecutor database, {
+    required String table,
+    required String guidColumn,
+    required List<String> guids,
+  }) async {
+    const chunkSize = 400;
+    for (var start = 0; start < guids.length; start += chunkSize) {
+      final end = start + chunkSize < guids.length
+          ? start + chunkSize
+          : guids.length;
+      final chunk = guids.sublist(start, end);
+      await database.update(
+        table,
+        const {'sync': 1},
+        where: '$guidColumn IN (${List.filled(chunk.length, '?').join(',')})',
+        whereArgs: chunk,
+      );
+    }
+  }
+
+  Future<Set<String>> _guidSet(
+    DatabaseExecutor database,
+    String table,
+    String column,
+  ) async => (await database.query(table, columns: [column]))
+      .map((row) => row[column]?.toString() ?? '')
+      .where((value) => value.isNotEmpty)
+      .toSet();
+
+  Future<Set<String>> _pendingGuidSet(
+    DatabaseExecutor database,
+    String table,
+    String column,
+  ) async => (await database.query(
+    table,
+    columns: [column],
+    where: 'sync = 0',
+  )).map((row) => row[column]?.toString() ?? '').toSet();
+
+  Future<void> _upsertCloudRow(
+    DatabaseExecutor database, {
+    required String table,
+    required String guidColumn,
+    required String guid,
+    required Map<String, Object?> values,
+  }) async {
+    final existing = await database.query(
+      table,
+      columns: [guidColumn],
+      where: '$guidColumn = ?',
+      whereArgs: [guid],
+      limit: 1,
+    );
+    if (existing.isEmpty) {
+      await database.insert(table, values);
+      return;
+    }
+    final updates = Map<String, Object?>.from(values)..remove(guidColumn);
+    await database.update(
+      table,
+      updates,
+      where: '$guidColumn = ?',
+      whereArgs: [guid],
+    );
+  }
+
+  static Object? _value(Map<String, Object?> row, String key) {
+    if (row.containsKey(key)) return row[key];
+    final pascal = key.isEmpty
+        ? key
+        : '${key[0].toUpperCase()}${key.substring(1)}';
+    return row[pascal];
+  }
+
+  static String _text(Map<String, Object?> row, String key) =>
+      _value(row, key)?.toString() ?? '';
+
+  static int _boolInt(Object? value) =>
+      value == true || value == 1 || value?.toString().toLowerCase() == 'true'
+      ? 1
+      : 0;
 
   static double _decimal(Object? value) => value is num
       ? value.toDouble()

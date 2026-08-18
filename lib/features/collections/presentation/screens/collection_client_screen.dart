@@ -135,12 +135,14 @@ class CollectionClientScreen extends ConsumerWidget {
                   for (final account in detail.accounts) ...[
                     _AccountCard(
                       account: account,
-                      onOpenSale: () => context.push(
-                        AppConstants.saleDetailScreenRoute.replaceFirst(
-                          ':orderGuid',
-                          account.orderGuid,
-                        ),
-                      ),
+                      onOpenSale: account.source == ReceivableSource.loan
+                          ? null
+                          : () => context.push(
+                              AppConstants.saleDetailScreenRoute.replaceFirst(
+                                ':orderGuid',
+                                account.orderGuid,
+                              ),
+                            ),
                       onToggleBlock: () => _toggleBlock(context, ref, account),
                     ),
                     const SizedBox(height: 9),
@@ -283,7 +285,7 @@ class _ClientIdentity extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(
-                'RFC ${client.rfc}${client.phone.isEmpty ? '' : ' · ${client.phone}'}',
+                _contact(client),
                 style: const TextStyle(color: AppColors.textGrey, fontSize: 11),
               ),
               if (client.creditBalance > .001) ...[
@@ -456,7 +458,7 @@ class _StatementRow extends StatelessWidget {
 
 class _AccountCard extends StatelessWidget {
   final ReceivableAccount account;
-  final VoidCallback onOpenSale;
+  final VoidCallback? onOpenSale;
   final VoidCallback onToggleBlock;
   const _AccountCard({
     required this.account,
@@ -481,6 +483,8 @@ class _AccountCard extends StatelessWidget {
             child: Icon(
               account.blocked
                   ? Icons.lock_outline
+                  : account.source == ReceivableSource.loan
+                  ? Icons.payments_outlined
                   : Icons.receipt_long_outlined,
               color: overdue ? const Color(0xFFE66A16) : AppColors.primaryBlue,
               size: 21,
@@ -494,7 +498,9 @@ class _AccountCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Venta VTA-${account.folio.toString().padLeft(6, '0')}',
+                    account.source == ReceivableSource.loan
+                        ? 'Préstamo'
+                        : 'Venta VTA-${account.folio.toString().padLeft(6, '0')}',
                     style: const TextStyle(
                       color: AppColors.navy,
                       fontSize: 13,
@@ -814,6 +820,14 @@ void _message(BuildContext context, String message, bool success) {
         backgroundColor: success ? AppColors.success : AppColors.error,
       ),
     );
+}
+
+String _contact(CollectionClientSummary client) {
+  final values = [
+    if (client.phone.isNotEmpty) client.phone,
+    if (client.email.isNotEmpty) client.email,
+  ];
+  return values.isEmpty ? 'Sin datos de contacto' : values.join(' · ');
 }
 
 String _money(double value) => '\$${value.toStringAsFixed(2)}';

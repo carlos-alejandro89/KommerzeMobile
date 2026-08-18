@@ -1,7 +1,6 @@
 class Client {
   final String guid;
   final String name;
-  final String rfc;
   final String email;
   final String phone;
   final double creditAmount;
@@ -13,7 +12,6 @@ class Client {
   const Client({
     required this.guid,
     required this.name,
-    required this.rfc,
     required this.email,
     required this.phone,
     required this.creditAmount,
@@ -26,7 +24,6 @@ class Client {
   factory Client.fromMap(Map<String, Object?> map) => Client(
     guid: map['guid']?.toString() ?? '',
     name: map['nombre']?.toString() ?? '',
-    rfc: map['rfc']?.toString() ?? '',
     email: map['correo']?.toString() ?? '',
     phone: map['telefono']?.toString() ?? '',
     creditAmount: _decimal(map['monto_credito']),
@@ -44,7 +41,6 @@ class Client {
 
 class ClientDraft {
   final String name;
-  final String rfc;
   final String email;
   final String phone;
   final double creditAmount;
@@ -52,7 +48,6 @@ class ClientDraft {
 
   const ClientDraft({
     required this.name,
-    required this.rfc,
     required this.email,
     required this.phone,
     required this.creditAmount,

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
 import 'package:kommerze_mobile/core/constants/app_constants.dart';
 import 'package:kommerze_mobile/core/widgets/product_image.dart';
+import 'package:kommerze_mobile/features/checkout/presentation/controllers/checkout_controller.dart';
+import 'package:kommerze_mobile/features/clients/data/repositories/clients_repository.dart';
 import 'package:kommerze_mobile/features/branch_operation/presentation/controllers/branch_operation_controller.dart';
 import 'package:kommerze_mobile/features/inventory/presentation/controllers/inventory_controller.dart';
 import 'package:kommerze_mobile/features/purchases/presentation/controllers/purchases_controller.dart';
@@ -372,7 +374,35 @@ class SaleCartSheet extends ConsumerWidget {
                             ? null
                             : purchaseMode
                             ? () => _registerPurchase(context, ref)
-                            : () {
+                            : () async {
+                                final clients = await ref
+                                    .read(clientsRepositoryProvider)
+                                    .getAll();
+                                final matches = clients.where(
+                                  (client) =>
+                                      client.guid ==
+                                      AppConstants.publicCustomerGuid,
+                                );
+                                final publicCustomer = matches.isEmpty
+                                    ? null
+                                    : matches.first;
+                                if (publicCustomer == null) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Sincroniza el catálogo Clientes para usar Público General.',
+                                      ),
+                                      behavior: SnackBarBehavior.floating,
+                                      backgroundColor: AppColors.error,
+                                    ),
+                                  );
+                                  return;
+                                }
+                                ref
+                                    .read(checkoutControllerProvider.notifier)
+                                    .selectClient(publicCustomer);
+                                if (!context.mounted) return;
                                 final router = GoRouter.of(context);
                                 Navigator.pop(context);
                                 router.push(AppConstants.checkoutScreenRoute);

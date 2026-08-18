@@ -20,6 +20,8 @@ CollectionPreview allocateCollectionPayment(
         dueAt: account.dueAt,
         previousBalance: account.balance,
         appliedAmount: applied,
+        source: account.source,
+        loanGuid: account.loanGuid,
       ),
     );
     remaining -= applied;

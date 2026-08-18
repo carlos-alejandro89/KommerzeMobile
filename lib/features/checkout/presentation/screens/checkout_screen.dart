@@ -6,8 +6,11 @@ import 'package:kommerze_mobile/core/constants/app_constants.dart';
 import 'package:kommerze_mobile/core/widgets/app_header.dart';
 import 'package:kommerze_mobile/features/checkout/domain/entities/sale_payment.dart';
 import 'package:kommerze_mobile/features/checkout/presentation/controllers/checkout_controller.dart';
+import 'package:kommerze_mobile/features/collections/data/repositories/collections_repository.dart';
 import 'package:kommerze_mobile/features/checkout/presentation/widgets/add_payment_sheet.dart';
+import 'package:kommerze_mobile/features/clients/data/repositories/clients_repository.dart';
 import 'package:kommerze_mobile/features/clients/domain/entities/client.dart';
+import 'package:kommerze_mobile/features/clients/presentation/widgets/selected_client_card.dart';
 import 'package:kommerze_mobile/features/sales/presentation/controllers/sales_controller.dart';
 import 'package:kommerze_mobile/features/sales/data/repositories/sales_repository.dart';
 import 'package:kommerze_mobile/features/sales_history/presentation/controllers/sales_history_controller.dart';
@@ -17,11 +20,31 @@ import 'package:kommerze_mobile/features/branch_operation/presentation/controlle
 import 'package:kommerze_mobile/features/inventory/presentation/controllers/inventory_controller.dart';
 import 'package:kommerze_mobile/features/collections/presentation/controllers/collections_controller.dart';
 
-class CheckoutScreen extends ConsumerWidget {
+class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CheckoutScreen> createState() => _CheckoutScreenState();
+}
+
+class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_selectDefaultCustomer);
+  }
+
+  Future<void> _selectDefaultCustomer() async {
+    final clients = await ref.read(clientsRepositoryProvider).getAll();
+    final matches = clients.where(
+      (client) => client.guid == AppConstants.publicCustomerGuid,
+    );
+    if (!mounted || matches.isEmpty) return;
+    ref.read(checkoutControllerProvider.notifier).selectClient(matches.first);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final checkout = ref.watch(checkoutControllerProvider);
     final availableCredit = checkout.client == null
         ? 0.0
@@ -69,10 +92,19 @@ class CheckoutScreen extends ConsumerWidget {
                   ),
                   child: checkout.client == null
                       ? _EmptyClient(onTap: () => _selectClient(context, ref))
-                      : _SelectedClient(
+                      : SelectedClientCard(
                           client: checkout.client!,
-                          availableCredit: availableCredit,
                           onTap: () => _selectClient(context, ref),
+                          footer: checkout.client!.creditAmount > 0
+                              ? Text(
+                                  'Crédito disponible ${_money(availableCredit)}',
+                                  style: const TextStyle(
+                                    color: AppColors.success,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                )
+                              : null,
                         ),
                 ),
                 const SizedBox(height: 12),
@@ -404,6 +436,7 @@ class CheckoutScreen extends ConsumerWidget {
     SalesSyncReport? syncReport;
     try {
       syncReport = await ref.read(salesRepositoryProvider).syncPending();
+      await ref.read(collectionsRepositoryProvider).syncPending();
     } catch (_) {
       // La venta ya está protegida en SQLite y se reintentará posteriormente.
     }
@@ -537,70 +570,6 @@ class _EmptyClient extends StatelessWidget {
   );
 }
 
-class _SelectedClient extends StatelessWidget {
-  final Client client;
-  final double availableCredit;
-  final VoidCallback onTap;
-  const _SelectedClient({
-    required this.client,
-    required this.availableCredit,
-    required this.onTap,
-  });
-  @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    child: Row(
-      children: [
-        CircleAvatar(
-          radius: 25,
-          backgroundColor: AppColors.successSoft,
-          child: Text(
-            _initials(client.name),
-            style: const TextStyle(
-              color: AppColors.success,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                client.name,
-                style: const TextStyle(
-                  color: AppColors.navy,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'RFC ${client.rfc}${client.phone.isEmpty ? '' : '  •  ${client.phone}'}',
-                style: const TextStyle(
-                  color: AppColors.textGrey,
-                  fontSize: 11.5,
-                ),
-              ),
-              if (client.creditAmount > 0)
-                Text(
-                  'Crédito disponible ${_money(availableCredit)}',
-                  style: const TextStyle(
-                    color: AppColors.success,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const Icon(Icons.chevron_right_rounded, color: AppColors.primaryBlue),
-      ],
-    ),
-  );
-}
-
 class _Amount extends StatelessWidget {
   final String label;
   final double value;
@@ -711,11 +680,4 @@ IconData _paymentIcon(PaymentMethod method) => switch (method) {
   PaymentMethod.credit => Icons.schedule_rounded,
   PaymentMethod.other => Icons.more_horiz_rounded,
 };
-String _initials(String name) => name
-    .trim()
-    .split(RegExp(r'\s+'))
-    .where((part) => part.isNotEmpty)
-    .take(2)
-    .map((part) => part[0].toUpperCase())
-    .join();
 String _money(double value) => '\$${value.toStringAsFixed(2)}';

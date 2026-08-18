@@ -1,6 +1,8 @@
 class AppConstants {
   AppConstants._();
 
+  static const publicCustomerGuid = '550e8400-e29b-41d4-a716-446655440000';
+
   static const splashScreenRoute = '/splash';
   static const loginScreenRoute = '/login';
   static const welcomeScreenRoute = '/welcome';
@@ -21,4 +23,10 @@ class AppConstants {
   static const collectionClientScreenRoute = '/collections/:clientGuid';
   static const collectionRegisterScreenRoute =
       '/collections/:clientGuid/register';
+  static const loansRoute = '/loans';
+  static const loanFormRoute = '/loans/form';
+  static const loanClientRoute = '/loans/client';
+  static const reportsRoute = '/reports';
+  static const profitReportRoute = '/reports/profits';
+  static const profitReportDetailRoute = '/reports/profits/:operationGuid';
 }

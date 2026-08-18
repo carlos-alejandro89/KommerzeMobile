@@ -6,6 +6,11 @@ import 'package:kommerze_mobile/core/constants/app_constants.dart';
 import 'package:kommerze_mobile/core/widgets/app_header.dart';
 import 'package:kommerze_mobile/features/sales_history/domain/entities/sale_history_item.dart';
 import 'package:kommerze_mobile/features/sales_history/presentation/controllers/sales_history_controller.dart';
+import 'package:kommerze_mobile/features/sales_history/data/repositories/sales_history_repository.dart';
+import 'package:kommerze_mobile/features/sales_history/presentation/widgets/cancel_sale_confirmation_sheet.dart';
+import 'package:kommerze_mobile/features/inventory/presentation/controllers/inventory_controller.dart';
+import 'package:kommerze_mobile/features/branch_operation/presentation/controllers/branch_operation_controller.dart';
+import 'package:kommerze_mobile/core/widgets/app_popup_menu_label.dart';
 
 enum _CreditFilter { all, cash, credit }
 
@@ -161,7 +166,13 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
                         const _EmptyState()
                       else
                         for (final item in filtered) ...[
-                          _SaleCard(item: item),
+                          _SaleCard(
+                            item: item,
+                            onCancel:
+                                item.statusName.toLowerCase() == 'cancelado'
+                                ? null
+                                : () => _cancelSale(item),
+                          ),
                           const SizedBox(height: 9),
                         ],
                     ],
@@ -173,6 +184,21 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _cancelSale(SaleHistoryItem item) async {
+    final cancelled = await showCancelSaleConfirmationSheet(
+      context: context,
+      sale: item,
+      onConfirm: () =>
+          ref.read(salesHistoryRepositoryProvider).cancelSale(item.orderGuid),
+    );
+    if (!cancelled || !mounted) return;
+    ref.invalidate(salesHistoryProvider);
+    ref.invalidate(recentSalesProvider);
+    ref.invalidate(dailySalesAnalyticsProvider);
+    ref.invalidate(inventoryControllerProvider);
+    ref.invalidate(branchOperationControllerProvider);
   }
 
   List<SaleHistoryItem> _filterItems(List<SaleHistoryItem> items) {
@@ -465,12 +491,17 @@ class _SummaryCard extends StatelessWidget {
 
 class _SaleCard extends StatelessWidget {
   final SaleHistoryItem item;
-  const _SaleCard({required this.item});
+  final VoidCallback? onCancel;
+  const _SaleCard({required this.item, required this.onCancel});
 
   @override
   Widget build(BuildContext context) {
-    final isPending = item.statusName.toLowerCase() == 'pendiente';
-    final statusColor = isPending ? const Color(0xFFE66A16) : AppColors.success;
+    final status = item.statusName.toLowerCase();
+    final statusColor = status == 'cancelado'
+        ? AppColors.error
+        : status == 'pendiente'
+        ? const Color(0xFFE66A16)
+        : AppColors.success;
     final itemColor = _itemColors[item.folio % _itemColors.length];
     return GestureDetector(
       onTap: () => context.push(
@@ -558,6 +589,37 @@ class _SaleCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (onCancel != null)
+                  SizedBox(
+                    width: 34,
+                    height: 34,
+                    child: PopupMenuButton<String>(
+                      tooltip: 'Opciones de venta',
+                      padding: EdgeInsets.zero,
+                      color: Colors.white,
+                      surfaceTintColor: Colors.transparent,
+                      elevation: 3,
+                      shape: appPopupMenuShape(),
+                      onSelected: (value) {
+                        if (value == 'cancel') onCancel!();
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: 'cancel',
+                          child: AppPopupMenuLabel(
+                            icon: Icons.cancel_outlined,
+                            text: 'Cancelar venta',
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ],
+                      icon: const Icon(
+                        Icons.more_vert_rounded,
+                        color: AppColors.navySoft,
+                        size: 21,
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 6),
                 Text(
                   _money(item.total),

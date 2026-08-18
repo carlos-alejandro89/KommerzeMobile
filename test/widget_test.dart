@@ -28,6 +28,7 @@ import 'package:kommerze_mobile/features/purchases/presentation/controllers/purc
 import 'package:kommerze_mobile/features/sales/data/datasources/sales_local_data_source.dart';
 import 'package:kommerze_mobile/features/branch_operation/domain/entities/branch_operation.dart';
 import 'package:kommerze_mobile/features/clients/domain/entities/client.dart';
+import 'package:kommerze_mobile/features/clients/presentation/widgets/selected_client_card.dart';
 import 'package:kommerze_mobile/features/clients/data/models/client_request_dto.dart';
 import 'package:kommerze_mobile/features/clients/data/models/client_response_dto.dart';
 import 'package:kommerze_mobile/features/sync/presentation/controllers/catalog_sync_controller.dart';
@@ -47,6 +48,33 @@ import 'package:kommerze_mobile/features/sales_history/presentation/screens/sale
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  testWidgets('muestra el cliente seleccionado con avatar, nombre y correo', (
+    tester,
+  ) async {
+    final client = Client(
+      guid: 'client-guid',
+      name: 'Carlos Alejandro',
+      email: 'carlos@kommerze.com',
+      phone: '',
+      creditAmount: 0,
+      creditDays: 0,
+      isActive: true,
+      createdAt: DateTime(2026, 1, 1),
+      updatedAt: DateTime(2026, 1, 1),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SelectedClientCard(client: client, onTap: () {}),
+        ),
+      ),
+    );
+
+    expect(find.text('CA'), findsOneWidget);
+    expect(find.text('Carlos Alejandro'), findsOneWidget);
+    expect(find.text('carlos@kommerze.com'), findsOneWidget);
+  });
+
   test('aplica una cobranza a las cuentas más antiguas y omite bloqueadas', () {
     final accounts = [
       _receivable(guid: 'oldest', folio: 1, original: 500, dueDay: 1),
@@ -85,6 +113,30 @@ void main() {
     expect(preview.appliedAmount, 800);
     expect(preview.creditBalance, 200);
     expect(preview.allocations.last.resultingBalance, 0);
+  });
+
+  test('aplica cobranza a préstamos respetando su origen contable', () {
+    final preview = allocateCollectionPayment([
+      ReceivableAccount(
+        accountGuid: 'loan-1',
+        orderGuid: '',
+        folio: 0,
+        originalAmount: 750,
+        paidAmount: 0,
+        issuedAt: DateTime(2026, 7, 1),
+        dueAt: DateTime(2026, 7, 31),
+        status: 'Pendiente',
+        blocked: false,
+        source: ReceivableSource.loan,
+        loanGuid: 'loan-1',
+      ),
+    ], 300);
+
+    expect(preview.allocations, hasLength(1));
+    expect(preview.allocations.single.source, ReceivableSource.loan);
+    expect(preview.allocations.single.loanGuid, 'loan-1');
+    expect(preview.allocations.single.appliedAmount, 300);
+    expect(preview.allocations.single.resultingBalance, 450);
   });
 
   testWidgets('muestra el resumen y clientes del módulo Cobranza', (
@@ -609,7 +661,7 @@ void main() {
     });
 
     expect(client.name, 'Público General');
-    expect(client.rfc, 'XAXA010101000');
+    expect(client.email, 'clientes@softi.digital');
     expect(client.guid, '550e8400-e29b-41d4-a716-446655440000');
     expect(client.isActive, isTrue);
   });
@@ -635,7 +687,6 @@ void main() {
     final json = ClientRequestDto(
       draft: const ClientDraft(
         name: 'Abarrotes del Centro',
-        rfc: 'abc090101xyz',
         email: 'CLIENTE@KOMMERZE.COM',
         phone: '9931234567',
         creditAmount: 15000,
@@ -645,14 +696,13 @@ void main() {
 
     expect(json.keys.toSet(), {
       'razonSocial',
-      'rfc',
       'correo',
       'telefono',
       'creditoMaximo',
       'diasCredito',
     });
     expect(json['razonSocial'], 'Abarrotes del Centro');
-    expect(json['rfc'], 'ABC090101XYZ');
+    expect(json['correo'], 'cliente@kommerze.com');
     expect(json['creditoMaximo'], 15000);
     expect(json['diasCredito'], 30);
   });
@@ -1091,7 +1141,7 @@ ReceivableAccount _receivable({
 CollectionClientSummary _collectionClientSummary() => CollectionClientSummary(
   clientGuid: 'client-1',
   name: 'Cliente de prueba',
-  rfc: 'XAXX010101000',
+  email: 'cliente@prueba.com',
   phone: '9931234567',
   creditLimit: 2000,
   balance: 800,

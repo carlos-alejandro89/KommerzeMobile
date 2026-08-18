@@ -23,6 +23,11 @@ import 'package:kommerze_mobile/features/welcome/presentation/screens/welcome_sc
 import 'package:kommerze_mobile/features/collections/presentation/screens/collections_screen.dart';
 import 'package:kommerze_mobile/features/collections/presentation/screens/collection_client_screen.dart';
 import 'package:kommerze_mobile/features/collections/presentation/screens/register_collection_screen.dart';
+import 'package:kommerze_mobile/features/loans/presentation/screens/loan_form_screen.dart';
+import 'package:kommerze_mobile/features/loans/presentation/screens/loans_screen.dart';
+import 'package:kommerze_mobile/features/reports/presentation/screens/reports_screen.dart';
+import 'package:kommerze_mobile/features/reports/presentation/screens/profit_report_screen.dart';
+import 'package:kommerze_mobile/features/reports/presentation/screens/profit_report_detail_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ValueNotifier(ref.read(authControllerProvider));
@@ -133,6 +138,34 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppConstants.collectionClientScreenRoute,
         builder: (_, state) => CollectionClientScreen(
           clientGuid: state.pathParameters['clientGuid'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppConstants.loansRoute,
+        builder: (_, _) => const LoansScreen(),
+      ),
+      GoRoute(
+        path: AppConstants.loanFormRoute,
+        builder: (_, _) => const LoanFormScreen(),
+      ),
+      GoRoute(
+        path: AppConstants.loanClientRoute,
+        builder: (_, _) => const ClientSelectionScreen(
+          subtitle: 'Selecciona quién recibirá el préstamo',
+        ),
+      ),
+      GoRoute(
+        path: AppConstants.reportsRoute,
+        builder: (_, _) => const ReportsScreen(),
+      ),
+      GoRoute(
+        path: AppConstants.profitReportRoute,
+        builder: (_, _) => const ProfitReportScreen(),
+      ),
+      GoRoute(
+        path: AppConstants.profitReportDetailRoute,
+        builder: (_, state) => ProfitReportDetailScreen(
+          operationGuid: state.pathParameters['operationGuid'] ?? '',
         ),
       ),
     ],

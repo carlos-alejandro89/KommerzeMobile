@@ -7,7 +7,6 @@ class ClientRequestDto {
 
   Map<String, dynamic> toJson() => {
     'razonSocial': draft.name.trim(),
-    'rfc': draft.rfc.trim().toUpperCase(),
     'correo': draft.email.trim().toLowerCase(),
     'telefono': draft.phone.trim(),
     'creditoMaximo': draft.creditAmount,

@@ -36,6 +36,7 @@ class AppDatabase {
         await _createSalesTables(database);
         await _createSalePaymentsTable(database);
         await _createCollectionsTables(database);
+        await _createLoansTables(database);
       },
     );
   }
@@ -156,7 +157,7 @@ class AppDatabase {
       CREATE TABLE clientes (
         guid TEXT PRIMARY KEY,
         nombre TEXT NOT NULL,
-        rfc TEXT NOT NULL,
+        rfc TEXT NOT NULL DEFAULT '',
         correo TEXT NOT NULL DEFAULT '',
         telefono TEXT NOT NULL DEFAULT '',
         monto_credito REAL NOT NULL DEFAULT 0,
@@ -336,6 +337,7 @@ class AppDatabase {
 
   Future<void> _ensureCurrentSchema(Database database) async {
     await _createCollectionsTables(database);
+    await _createLoansTables(database);
   }
 
   Future<void> _createCollectionsTables(DatabaseExecutor database) async {
@@ -385,6 +387,7 @@ class AppDatabase {
         forma_pago_guid TEXT NOT NULL,
         monto REAL NOT NULL,
         referencia TEXT,
+        sync INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (cobro_guid) REFERENCES cobros_cliente(cobro_guid)
           ON DELETE CASCADE,
         FOREIGN KEY (forma_pago_guid) REFERENCES formas_pago(guid)
@@ -397,6 +400,7 @@ class AppDatabase {
         cuenta_guid TEXT NOT NULL,
         monto_aplicado REAL NOT NULL,
         created_at TEXT NOT NULL,
+        sync INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (cobro_guid) REFERENCES cobros_cliente(cobro_guid)
           ON DELETE CASCADE,
         FOREIGN KEY (cuenta_guid) REFERENCES cuentas_por_cobrar(cuenta_guid)
@@ -404,6 +408,7 @@ class AppDatabase {
       )
     ''');
     await _ensureReceivableStatusReference(database);
+    await _ensureCollectionsSyncColumns(database);
     await database.execute(
       'CREATE INDEX IF NOT EXISTS idx_cxc_cliente ON cuentas_por_cobrar(cliente_guid, fecha_vencimiento)',
     );
@@ -425,6 +430,78 @@ class AppDatabase {
     await database.execute(
       'CREATE INDEX IF NOT EXISTS idx_aplicaciones_cobro ON aplicaciones_cobro(cobro_guid)',
     );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_cxc_sync ON cuentas_por_cobrar(sync)',
+    );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_cobros_sync ON cobros_cliente(sync)',
+    );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_cobro_formas_sync ON cobro_formas_pago(sync)',
+    );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_aplicaciones_sync ON aplicaciones_cobro(sync)',
+    );
+  }
+
+  Future<void> _createLoansTables(DatabaseExecutor database) async {
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS prestamos_cliente (
+        prestamo_guid TEXT PRIMARY KEY,
+        sucursal_guid TEXT NOT NULL,
+        cliente_guid TEXT NOT NULL,
+        fecha TEXT NOT NULL,
+        fecha_vencimiento TEXT NOT NULL,
+        monto REAL NOT NULL,
+        concepto TEXT,
+        usuario_guid TEXT,
+        usuario_nombre TEXT,
+        bloqueado INTEGER NOT NULL DEFAULT 0,
+        cancelado INTEGER NOT NULL DEFAULT 0,
+        sync INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (cliente_guid) REFERENCES clientes(guid)
+      )
+    ''');
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS aplicaciones_prestamo (
+        aplicacion_guid TEXT PRIMARY KEY,
+        cobro_guid TEXT NOT NULL,
+        prestamo_guid TEXT NOT NULL,
+        monto_aplicado REAL NOT NULL,
+        created_at TEXT NOT NULL,
+        sync INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (cobro_guid) REFERENCES cobros_cliente(cobro_guid)
+          ON DELETE CASCADE,
+        FOREIGN KEY (prestamo_guid) REFERENCES prestamos_cliente(prestamo_guid)
+          ON DELETE CASCADE
+      )
+    ''');
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_prestamos_cliente '
+      'ON prestamos_cliente(cliente_guid, fecha_vencimiento)',
+    );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_prestamos_sync '
+      'ON prestamos_cliente(sync)',
+    );
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS idx_aplicaciones_prestamo_cobro '
+      'ON aplicaciones_prestamo(cobro_guid)',
+    );
+  }
+
+  Future<void> _ensureCollectionsSyncColumns(DatabaseExecutor database) async {
+    for (final table in const ['cobro_formas_pago', 'aplicaciones_cobro']) {
+      final columns = await database.rawQuery('PRAGMA table_info($table)');
+      final hasSync = columns.any((column) => column['name'] == 'sync');
+      if (!hasSync) {
+        await database.execute(
+          'ALTER TABLE $table ADD COLUMN sync INTEGER NOT NULL DEFAULT 0',
+        );
+      }
+    }
   }
 
   Future<void> _ensureReceivableStatusReference(

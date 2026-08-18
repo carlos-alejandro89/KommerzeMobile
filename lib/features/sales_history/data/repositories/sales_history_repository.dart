@@ -11,6 +11,7 @@ class SalesHistoryRepository {
   Future<List<SaleHistoryItem>> getRecent({int limit = 3}) =>
       local.getAll(limit: limit);
   Future<SaleDetail?> getDetail(String orderGuid) => local.getDetail(orderGuid);
+  Future<void> cancelSale(String orderGuid) => local.cancelSale(orderGuid);
 }
 
 final salesHistoryRepositoryProvider = Provider<SalesHistoryRepository>(

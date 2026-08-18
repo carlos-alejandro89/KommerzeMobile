@@ -15,7 +15,7 @@ class CollectionDashboard {
 class CollectionClientSummary {
   final String clientGuid;
   final String name;
-  final String rfc;
+  final String email;
   final String phone;
   final double creditLimit;
   final double balance;
@@ -27,7 +27,7 @@ class CollectionClientSummary {
   const CollectionClientSummary({
     required this.clientGuid,
     required this.name,
-    required this.rfc,
+    required this.email,
     required this.phone,
     required this.creditLimit,
     required this.balance,
@@ -51,6 +51,8 @@ class ReceivableAccount {
   final DateTime dueAt;
   final String status;
   final bool blocked;
+  final ReceivableSource source;
+  final String? loanGuid;
 
   const ReceivableAccount({
     required this.accountGuid,
@@ -62,11 +64,15 @@ class ReceivableAccount {
     required this.dueAt,
     required this.status,
     required this.blocked,
+    this.source = ReceivableSource.sale,
+    this.loanGuid,
   });
 
   double get balance => (originalAmount - paidAmount).clamp(0, double.infinity);
   bool get isOverdue => balance > .001 && dueAt.isBefore(DateTime.now());
 }
+
+enum ReceivableSource { sale, loan }
 
 class CollectionClientDetail {
   final CollectionClientSummary client;
@@ -120,6 +126,7 @@ class PaymentFormOption {
     '02' => 'Cheque',
     '03' => 'Transferencia',
     '04' || '28' || '29' => 'Tarjeta',
+    '99' => 'Otro',
     _ => description,
   };
 }
@@ -143,6 +150,8 @@ class CollectionAllocation {
   final DateTime dueAt;
   final double previousBalance;
   final double appliedAmount;
+  final ReceivableSource source;
+  final String? loanGuid;
 
   const CollectionAllocation({
     required this.accountGuid,
@@ -151,6 +160,8 @@ class CollectionAllocation {
     required this.dueAt,
     required this.previousBalance,
     required this.appliedAmount,
+    this.source = ReceivableSource.sale,
+    this.loanGuid,
   });
 
   double get resultingBalance =>

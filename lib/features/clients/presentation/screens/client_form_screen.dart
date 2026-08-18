@@ -19,7 +19,6 @@ class ClientFormScreen extends ConsumerStatefulWidget {
 class _ClientFormScreenState extends ConsumerState<ClientFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
-  late final TextEditingController _rfc;
   late final TextEditingController _email;
   late final TextEditingController _phone;
   late final TextEditingController _credit;
@@ -33,7 +32,6 @@ class _ClientFormScreenState extends ConsumerState<ClientFormScreen> {
     super.initState();
     final client = widget.client;
     _name = TextEditingController(text: client?.name ?? '');
-    _rfc = TextEditingController(text: client?.rfc ?? '');
     _email = TextEditingController(text: client?.email ?? '');
     _phone = TextEditingController(text: client?.phone ?? '');
     _credit = TextEditingController(
@@ -44,7 +42,7 @@ class _ClientFormScreenState extends ConsumerState<ClientFormScreen> {
 
   @override
   void dispose() {
-    for (final controller in [_name, _rfc, _email, _phone, _credit, _days]) {
+    for (final controller in [_name, _email, _phone, _credit, _days]) {
       controller.dispose();
     }
     super.dispose();
@@ -76,8 +74,8 @@ class _ClientFormScreenState extends ConsumerState<ClientFormScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _FormSection(
-                        icon: Icons.business_outlined,
-                        title: 'Información fiscal',
+                        icon: Icons.person_outline_rounded,
+                        title: 'Información general',
                         subtitle: 'Datos de identificación del cliente',
                         children: [
                           _field(
@@ -85,14 +83,6 @@ class _ClientFormScreenState extends ConsumerState<ClientFormScreen> {
                             'Nombre o razón social',
                             icon: Icons.person_outline_rounded,
                             required: true,
-                          ),
-                          _field(
-                            _rfc,
-                            'RFC',
-                            icon: Icons.badge_outlined,
-                            required: true,
-                            caps: true,
-                            validator: _rfcValidator,
                           ),
                         ],
                       ),
@@ -104,14 +94,14 @@ class _ClientFormScreenState extends ConsumerState<ClientFormScreen> {
                         children: [
                           _field(
                             _email,
-                            'Correo electrónico',
+                            'Correo electrónico (opcional)',
                             icon: Icons.email_outlined,
                             type: TextInputType.emailAddress,
                             validator: _emailValidator,
                           ),
                           _field(
                             _phone,
-                            'Teléfono',
+                            'Teléfono (opcional)',
                             icon: Icons.phone_outlined,
                             type: TextInputType.phone,
                           ),
@@ -213,13 +203,6 @@ class _ClientFormScreenState extends ConsumerState<ClientFormScreen> {
     ),
   );
 
-  String? _rfcValidator(String? value) {
-    final rfc = value?.trim() ?? '';
-    if (rfc.isEmpty) return 'RFC es requerido';
-    if (rfc.length < 12 || rfc.length > 13) return 'Ingresa un RFC válido';
-    return null;
-  }
-
   String? _emailValidator(String? value) {
     final email = value?.trim() ?? '';
     if (email.isEmpty) return null;
@@ -234,7 +217,6 @@ class _ClientFormScreenState extends ConsumerState<ClientFormScreen> {
     setState(() => _saving = true);
     final draft = ClientDraft(
       name: _name.text,
-      rfc: _rfc.text,
       email: _email.text,
       phone: _phone.text,
       creditAmount: double.tryParse(_credit.text) ?? 0,

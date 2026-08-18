@@ -479,8 +479,10 @@ class _AllocationRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      const Icon(
-        Icons.receipt_long_outlined,
+      Icon(
+        allocation.source == ReceivableSource.loan
+            ? Icons.payments_outlined
+            : Icons.receipt_long_outlined,
         color: AppColors.primaryBlue,
         size: 20,
       ),
@@ -490,7 +492,9 @@ class _AllocationRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'VTA-${allocation.folio.toString().padLeft(6, '0')}',
+              allocation.source == ReceivableSource.loan
+                  ? 'Préstamo'
+                  : 'VTA-${allocation.folio.toString().padLeft(6, '0')}',
               style: const TextStyle(
                 color: AppColors.navy,
                 fontSize: 12,

@@ -2,8 +2,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kommerze_mobile/features/collections/data/repositories/collections_repository.dart';
 import 'package:kommerze_mobile/features/collections/domain/entities/collection_models.dart';
 
-final collectionsDashboardProvider = FutureProvider<CollectionDashboard>((ref) {
-  return ref.read(collectionsRepositoryProvider).getDashboard();
+final collectionsDashboardProvider = FutureProvider<CollectionDashboard>((
+  ref,
+) async {
+  final repository = ref.read(collectionsRepositoryProvider);
+  try {
+    await repository.syncPending();
+  } catch (_) {
+    // El dashboard local sigue disponible aun sin conexión.
+  }
+  return repository.getDashboard();
 });
 
 final collectionClientDetailProvider =

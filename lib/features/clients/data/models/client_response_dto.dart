@@ -8,7 +8,6 @@ class ClientResponseDto {
     return Client(
       guid: json['guid']?.toString() ?? '',
       name: json['razonSocial']?.toString() ?? '',
-      rfc: json['rfc']?.toString() ?? '',
       email: json['correo']?.toString() ?? '',
       phone: json['telefono']?.toString() ?? '',
       creditAmount: _decimal(json['creditoMaximo']),

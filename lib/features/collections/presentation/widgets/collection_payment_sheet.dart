@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
+import 'package:kommerze_mobile/core/widgets/payment_method_card.dart';
 import 'package:kommerze_mobile/features/collections/domain/entities/collection_models.dart';
 
 class CollectionPaymentSheet extends StatefulWidget {
@@ -147,41 +148,31 @@ class _CollectionPaymentSheetState extends State<CollectionPaymentSheet> {
                     ),
                   )
                 else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: widget.paymentForms
-                        .map((form) {
-                          final selected = _selected?.guid == form.guid;
-                          return ChoiceChip(
-                            selected: selected,
-                            showCheckmark: false,
-                            avatar: Icon(
-                              _paymentIcon(form.key),
-                              size: 17,
-                              color: selected
-                                  ? AppColors.primaryBlue
-                                  : AppColors.textGrey,
-                            ),
-                            label: Text(form.label),
-                            labelStyle: TextStyle(
-                              color: selected
-                                  ? AppColors.primaryBlue
-                                  : AppColors.navy,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            selectedColor: AppColors.primaryLight,
-                            backgroundColor: AppColors.primarySurface,
-                            side: BorderSide(
-                              color: selected
-                                  ? AppColors.primaryBlue
-                                  : Colors.transparent,
-                            ),
-                            onSelected: (_) => setState(() => _selected = form),
-                          );
-                        })
-                        .toList(growable: false),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      const spacing = 9.0;
+                      final itemWidth =
+                          (constraints.maxWidth - spacing * 2) / 3;
+                      return Wrap(
+                        spacing: spacing,
+                        runSpacing: spacing,
+                        children: widget.paymentForms
+                            .map((form) {
+                              final selected = _selected?.guid == form.guid;
+                              return SizedBox(
+                                width: itemWidth,
+                                child: PaymentMethodCard(
+                                  label: form.label,
+                                  icon: _paymentIcon(form.key),
+                                  color: _paymentColor(form.key),
+                                  selected: selected,
+                                  onTap: () => setState(() => _selected = form),
+                                ),
+                              );
+                            })
+                            .toList(growable: false),
+                      );
+                    },
                   ),
                 const SizedBox(height: 18),
                 const Text(
@@ -279,6 +270,14 @@ IconData _paymentIcon(String key) => switch (key) {
   '03' => Icons.account_balance_outlined,
   '04' || '28' || '29' => Icons.credit_card_rounded,
   _ => Icons.account_balance_wallet_outlined,
+};
+
+Color _paymentColor(String key) => switch (key) {
+  '01' => AppColors.success,
+  '04' || '28' || '29' => AppColors.primaryBlue,
+  '03' => const Color(0xFF7138C8),
+  '02' => const Color(0xFF247B9E),
+  _ => AppColors.textGrey,
 };
 
 String _money(double value) => '\$${value.toStringAsFixed(2)}';
