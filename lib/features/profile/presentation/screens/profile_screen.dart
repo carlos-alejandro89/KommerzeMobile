@@ -152,23 +152,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    const _ProfileSection(
+                    _ProfileSection(
                       title: 'Preferencias',
                       items: [
-                        _ProfileItem(
+                        const _ProfileItem(
                           icon: Icons.palette_outlined,
                           label: 'Tema de la aplicación',
                           value: 'Sistema',
                         ),
-                        _ProfileItem(
+                        const _ProfileItem(
                           icon: Icons.language_rounded,
                           label: 'Idioma',
                           value: 'Español',
                         ),
-                        _ProfileItem(
+                        const _ProfileItem(
                           icon: Icons.notifications_none_rounded,
                           label: 'Notificaciones',
                           value: 'Activadas',
+                        ),
+                        _ProfileItem(
+                          icon: Icons.print_outlined,
+                          label: 'Miniprinter y recibos',
+                          value: 'Configurar',
+                          onTap: () =>
+                              context.push(AppConstants.printerSettingsRoute),
                         ),
                       ],
                     ),
@@ -506,18 +513,20 @@ class _ProfileItem extends StatelessWidget {
   final String label;
   final String? value;
   final Color? valueColor;
+  final VoidCallback? onTap;
 
   const _ProfileItem({
     required this.icon,
     required this.label,
     this.value,
     this.valueColor,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {},
+      onTap: onTap,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 64),
         child: Padding(

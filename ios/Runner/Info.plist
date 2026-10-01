@@ -4,6 +4,8 @@
 <dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Kommerze utiliza la cámara para leer códigos de barras de los productos.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Kommerze se conecta a tu miniprinter en la red local para imprimir recibos de venta.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

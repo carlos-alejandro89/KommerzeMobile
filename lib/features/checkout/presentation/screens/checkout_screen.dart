@@ -19,6 +19,11 @@ import 'package:kommerze_mobile/features/sales/domain/entities/sale_order.dart';
 import 'package:kommerze_mobile/features/branch_operation/presentation/controllers/branch_operation_controller.dart';
 import 'package:kommerze_mobile/features/inventory/presentation/controllers/inventory_controller.dart';
 import 'package:kommerze_mobile/features/collections/presentation/controllers/collections_controller.dart';
+import 'package:kommerze_mobile/features/printer/data/services/receipt_email_service.dart';
+import 'package:kommerze_mobile/features/printer/data/services/thermal_printer_service.dart';
+import 'package:kommerze_mobile/features/printer/domain/entities/sale_receipt.dart';
+import 'package:kommerze_mobile/features/printer/presentation/controllers/printer_settings_controller.dart';
+import 'package:kommerze_mobile/core/storage/secure_storage_provider.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -442,28 +447,31 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
     if (!context.mounted) return;
     final synchronized = syncReport?.isSynchronized(order.orderGuid) ?? false;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          synchronized
-              ? 'Venta sincronizada'
-              : statusName == 'Confirmado'
-              ? 'Venta guardada'
-              : 'Venta pendiente',
-        ),
-        content: Text(
-          synchronized
-              ? 'La venta con folio ${order.folio} se registró en Kommerze Cloud.'
-              : 'La venta con folio ${order.folio} se guardó localmente y quedó pendiente de sincronización.',
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () => context.pop(),
-            child: const Text('Aceptar'),
-          ),
-        ],
-      ),
+    final receipt = SaleReceipt(
+      order: order,
+      client: client,
+      items: List.unmodifiable(cart),
+      payments: List.unmodifiable(checkout.payments),
+    );
+    String? automaticPrintError;
+    final printerSettings = ref.read(printerSettingsControllerProvider);
+    if (statusName == 'Confirmado' && printerSettings.printAfterSale) {
+      try {
+        await const ThermalPrinterService().printReceipt(
+          receipt,
+          printerSettings,
+        );
+      } catch (error) {
+        automaticPrintError = error.toString();
+      }
+    }
+    if (!context.mounted) return;
+    await _showSaleCompletedDialog(
+      context,
+      synchronized: synchronized,
+      pending: statusName != 'Confirmado',
+      receipt: receipt,
+      automaticPrintError: automaticPrintError,
     );
     ref.read(saleCartControllerProvider.notifier).clear();
     ref.read(checkoutControllerProvider.notifier).reset();
@@ -473,6 +481,120 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     ref.invalidate(salesCatalogControllerProvider);
     ref.invalidate(branchOperationControllerProvider);
     if (context.mounted) context.go(AppConstants.welcomeScreenRoute);
+  }
+
+  Future<void> _showSaleCompletedDialog(
+    BuildContext context, {
+    required bool synchronized,
+    required bool pending,
+    required SaleReceipt receipt,
+    required String? automaticPrintError,
+  }) async {
+    var busy = false;
+    String? actionMessage = automaticPrintError == null
+        ? null
+        : 'La venta se guardó, pero no se imprimió: $automaticPrintError';
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          Future<void> run(
+            Future<void> Function() action,
+            String success,
+          ) async {
+            setDialogState(() {
+              busy = true;
+              actionMessage = null;
+            });
+            try {
+              await action();
+              setDialogState(() => actionMessage = success);
+            } catch (error) {
+              setDialogState(() => actionMessage = error.toString());
+            } finally {
+              setDialogState(() => busy = false);
+            }
+          }
+
+          return AlertDialog(
+            title: Text(
+              synchronized
+                  ? 'Venta sincronizada'
+                  : pending
+                  ? 'Venta pendiente'
+                  : 'Venta guardada',
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  synchronized
+                      ? 'La venta ${receipt.folio} se registró en Kommerze Cloud.'
+                      : 'La venta ${receipt.folio} se guardó localmente y quedó pendiente de sincronización.',
+                ),
+                if (actionMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    actionMessage!,
+                    style: TextStyle(
+                      color: actionMessage!.startsWith('Recibo')
+                          ? AppColors.success
+                          : AppColors.error,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton.icon(
+                onPressed: busy
+                    ? null
+                    : () => run(
+                        () =>
+                            ReceiptEmailService(
+                              ref.read(secureStorageProvider),
+                            ).send(
+                              receipt,
+                              ref.read(printerSettingsControllerProvider),
+                            ),
+                        'Recibo enviado a ${receipt.client.email}.',
+                      ),
+                icon: const Icon(Icons.email_outlined),
+                label: const Text('Enviar'),
+              ),
+              TextButton.icon(
+                onPressed: busy
+                    ? null
+                    : () => run(
+                        () => const ThermalPrinterService().printReceipt(
+                          receipt,
+                          ref.read(printerSettingsControllerProvider),
+                        ),
+                        'Recibo impreso correctamente.',
+                      ),
+                icon: const Icon(Icons.print_outlined),
+                label: const Text('Imprimir'),
+              ),
+              FilledButton(
+                onPressed: busy ? null : () => dialogContext.pop(),
+                child: busy
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Aceptar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }
 

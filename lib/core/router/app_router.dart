@@ -5,6 +5,7 @@ import 'package:kommerze_mobile/core/constants/app_constants.dart';
 import 'package:kommerze_mobile/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:kommerze_mobile/features/auth/presentation/screens/login_screen.dart';
 import 'package:kommerze_mobile/features/profile/presentation/screens/profile_screen.dart';
+import 'package:kommerze_mobile/features/printer/presentation/screens/printer_settings_screen.dart';
 import 'package:kommerze_mobile/features/license/presentation/screens/license_screen.dart';
 import 'package:kommerze_mobile/features/inventory/presentation/screens/inventory_screen.dart';
 import 'package:kommerze_mobile/features/branch_operation/presentation/screens/branch_operation_screen.dart';
@@ -73,6 +74,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppConstants.profileScreenRoute,
         builder: (_, _) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: AppConstants.printerSettingsRoute,
+        builder: (_, _) => const PrinterSettingsScreen(),
       ),
       GoRoute(
         path: AppConstants.licenseScreenRoute,

@@ -7,6 +7,7 @@ class AppConstants {
   static const loginScreenRoute = '/login';
   static const welcomeScreenRoute = '/welcome';
   static const profileScreenRoute = '/profile';
+  static const printerSettingsRoute = '/settings/printer';
   static const licenseScreenRoute = '/license';
   static const inventoryScreenRoute = '/inventory';
   static const branchOperationScreenRoute = '/branch-operation';
