@@ -8,12 +8,22 @@ class SaleReceipt {
   final Client client;
   final List<SaleCartItem> items;
   final List<SalePayment> payments;
+  final String branchName;
+  final String branchAddress;
+  final String branchPhone;
+  final String branchEmail;
+  final String cashierName;
 
   const SaleReceipt({
     required this.order,
     required this.client,
     required this.items,
     required this.payments,
+    this.branchName = '',
+    this.branchAddress = '',
+    this.branchPhone = '',
+    this.branchEmail = '',
+    this.cashierName = '',
   });
 
   double get subtotal => items.fold(0, (sum, item) => sum + item.subtotal);

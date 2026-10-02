@@ -24,6 +24,8 @@ import 'package:kommerze_mobile/features/printer/data/services/thermal_printer_s
 import 'package:kommerze_mobile/features/printer/domain/entities/sale_receipt.dart';
 import 'package:kommerze_mobile/features/printer/presentation/controllers/printer_settings_controller.dart';
 import 'package:kommerze_mobile/core/storage/secure_storage_provider.dart';
+import 'package:kommerze_mobile/features/license/presentation/controllers/license_activation_controller.dart';
+import 'package:kommerze_mobile/features/auth/presentation/controllers/auth_controller.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -447,11 +449,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
     if (!context.mounted) return;
     final synchronized = syncReport?.isSynchronized(order.orderGuid) ?? false;
+    final licenseDetails = await ref.read(licenseDetailsProvider.future);
+    final branch = licenseDetails?.branch;
+    final user = ref.read(authControllerProvider).value;
     final receipt = SaleReceipt(
       order: order,
       client: client,
       items: List.unmodifiable(cart),
       payments: List.unmodifiable(checkout.payments),
+      branchName: branch?.name ?? '',
+      branchAddress: [
+        branch?.address ?? '',
+        branch?.city ?? '',
+        branch?.state ?? '',
+        if ((branch?.postalCode ?? '').isNotEmpty) 'C.P. ${branch!.postalCode}',
+      ].where((value) => value.trim().isNotEmpty).join(', '),
+      branchPhone: branch?.phone ?? '',
+      branchEmail: branch?.email ?? '',
+      cashierName: user?.name ?? '',
     );
     String? automaticPrintError;
     final printerSettings = ref.read(printerSettingsControllerProvider);

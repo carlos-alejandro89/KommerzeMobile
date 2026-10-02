@@ -11,6 +11,10 @@ import 'package:kommerze_mobile/features/sales_history/presentation/widgets/canc
 import 'package:kommerze_mobile/features/inventory/presentation/controllers/inventory_controller.dart';
 import 'package:kommerze_mobile/features/branch_operation/presentation/controllers/branch_operation_controller.dart';
 import 'package:kommerze_mobile/core/widgets/app_popup_menu_label.dart';
+import 'package:kommerze_mobile/features/printer/data/services/thermal_printer_service.dart';
+import 'package:kommerze_mobile/features/printer/presentation/controllers/printer_settings_controller.dart';
+import 'package:kommerze_mobile/features/license/presentation/controllers/license_activation_controller.dart';
+import 'package:kommerze_mobile/features/auth/presentation/controllers/auth_controller.dart';
 
 enum _CreditFilter { all, cash, credit }
 
@@ -168,6 +172,7 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
                         for (final item in filtered) ...[
                           _SaleCard(
                             item: item,
+                            onReprint: () => _reprintSale(item),
                             onCancel:
                                 item.statusName.toLowerCase() == 'cancelado'
                                 ? null
@@ -184,6 +189,58 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _reprintSale(SaleHistoryItem item) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Enviando ticket a la miniprinter...'),
+        duration: Duration(seconds: 20),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    try {
+      final sale = await ref
+          .read(salesHistoryRepositoryProvider)
+          .getDetail(item.orderGuid);
+      if (sale == null) throw Exception('La venta ya no está disponible.');
+      final details = await ref.read(licenseDetailsProvider.future);
+      final branch = details?.branch;
+      await const ThermalPrinterService().reprintSale(
+        sale,
+        ref.read(printerSettingsControllerProvider),
+        branchAddress: [
+          branch?.address ?? '',
+          branch?.city ?? '',
+          branch?.state ?? '',
+          if ((branch?.postalCode ?? '').isNotEmpty)
+            'C.P. ${branch!.postalCode}',
+        ].where((value) => value.trim().isNotEmpty).join(', '),
+        branchPhone: branch?.phone ?? '',
+        branchEmail: branch?.email ?? '',
+        cashierName: ref.read(authControllerProvider).value?.name ?? '',
+      );
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Ticket reimpreso correctamente.'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.success,
+          ),
+        );
+    } catch (error) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(error.toString()),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.error,
+          ),
+        );
+    }
   }
 
   Future<void> _cancelSale(SaleHistoryItem item) async {
@@ -492,7 +549,12 @@ class _SummaryCard extends StatelessWidget {
 class _SaleCard extends StatelessWidget {
   final SaleHistoryItem item;
   final VoidCallback? onCancel;
-  const _SaleCard({required this.item, required this.onCancel});
+  final VoidCallback onReprint;
+  const _SaleCard({
+    required this.item,
+    required this.onCancel,
+    required this.onReprint,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -589,22 +651,31 @@ class _SaleCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (onCancel != null)
-                  SizedBox(
-                    width: 34,
-                    height: 34,
-                    child: PopupMenuButton<String>(
-                      tooltip: 'Opciones de venta',
-                      padding: EdgeInsets.zero,
-                      color: Colors.white,
-                      surfaceTintColor: Colors.transparent,
-                      elevation: 3,
-                      shape: appPopupMenuShape(),
-                      onSelected: (value) {
-                        if (value == 'cancel') onCancel!();
-                      },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
+                SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: PopupMenuButton<String>(
+                    tooltip: 'Opciones de venta',
+                    padding: EdgeInsets.zero,
+                    color: Colors.white,
+                    surfaceTintColor: Colors.transparent,
+                    elevation: 3,
+                    shape: appPopupMenuShape(),
+                    onSelected: (value) {
+                      if (value == 'reprint') onReprint();
+                      if (value == 'cancel') onCancel?.call();
+                    },
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'reprint',
+                        child: AppPopupMenuLabel(
+                          icon: Icons.print_outlined,
+                          text: 'Reimprimir ticket',
+                          color: AppColors.primaryBlue,
+                        ),
+                      ),
+                      if (onCancel != null)
+                        const PopupMenuItem(
                           value: 'cancel',
                           child: AppPopupMenuLabel(
                             icon: Icons.cancel_outlined,
@@ -612,14 +683,14 @@ class _SaleCard extends StatelessWidget {
                             color: AppColors.error,
                           ),
                         ),
-                      ],
-                      icon: const Icon(
-                        Icons.more_vert_rounded,
-                        color: AppColors.navySoft,
-                        size: 21,
-                      ),
+                    ],
+                    icon: const Icon(
+                      Icons.more_vert_rounded,
+                      color: AppColors.navySoft,
+                      size: 21,
                     ),
                   ),
+                ),
                 const SizedBox(height: 6),
                 Text(
                   _money(item.total),

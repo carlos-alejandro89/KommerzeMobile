@@ -153,7 +153,7 @@ class BranchOperationLocalDataSource {
         ), 0) AS valor_ventas,
         COALESCE(SUM(
           CASE WHEN p.tipo_pedido_guid = 'c82164a9-616c-4148-80fd-c4702d8a7cca'
-            THEN d.cantidad * d.precio_compra
+            THEN d.cantidad * d.precio_venta
             ELSE 0 END
         ), 0) AS valor_compras,
         COALESCE(SUM(

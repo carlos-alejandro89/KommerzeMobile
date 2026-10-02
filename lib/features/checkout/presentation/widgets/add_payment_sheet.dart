@@ -18,25 +18,55 @@ class PaymentDraft {
 class AddPaymentSheet extends StatefulWidget {
   final double pending;
   final double availableCredit;
+  final bool dialogMode;
 
   const AddPaymentSheet({
     super.key,
     required this.pending,
     required this.availableCredit,
+    this.dialogMode = false,
   });
 
   static Future<PaymentDraft?> show(
     BuildContext context, {
     required double pending,
     required double availableCredit,
-  }) => showModalBottomSheet<PaymentDraft>(
-    context: context,
-    isScrollControlled: true,
-    requestFocus: false,
-    backgroundColor: Colors.transparent,
-    builder: (_) =>
-        AddPaymentSheet(pending: pending, availableCredit: availableCredit),
-  );
+  }) {
+    final size = MediaQuery.sizeOf(context);
+    final useDialog = size.shortestSide >= 600 && size.width > size.height;
+    final content = AddPaymentSheet(
+      pending: pending,
+      availableCredit: availableCredit,
+      dialogMode: useDialog,
+    );
+    if (useDialog) {
+      return showDialog<PaymentDraft>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => Dialog(
+          insetPadding: const EdgeInsets.all(24),
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 720,
+              maxHeight: size.height * .88,
+            ),
+            child: content,
+          ),
+        ),
+      );
+    }
+    return showModalBottomSheet<PaymentDraft>(
+      context: context,
+      isScrollControlled: true,
+      requestFocus: false,
+      backgroundColor: Colors.transparent,
+      builder: (_) => content,
+    );
+  }
 
   @override
   State<AddPaymentSheet> createState() => _AddPaymentSheetState();
@@ -100,24 +130,37 @@ class _AddPaymentSheetState extends State<AddPaymentSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.borderGrey,
-                    borderRadius: BorderRadius.circular(4),
+              if (!widget.dialogMode)
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.borderGrey,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
                 ),
-              ),
               const SizedBox(height: 18),
-              const Text(
-                'Agregar pago',
-                style: TextStyle(
-                  color: AppColors.navy,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w700,
-                ),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Agregar pago',
+                      style: TextStyle(
+                        color: AppColors.navy,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  if (widget.dialogMode)
+                    IconButton(
+                      tooltip: 'Cerrar',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                ],
               ),
               const SizedBox(height: 4),
               Text(
@@ -131,7 +174,10 @@ class _AddPaymentSheetState extends State<AddPaymentSheet> {
               LayoutBuilder(
                 builder: (context, constraints) {
                   const spacing = 9.0;
-                  final itemWidth = (constraints.maxWidth - spacing * 2) / 3;
+                  final columns = constraints.maxWidth >= 560 ? 6 : 3;
+                  final itemWidth =
+                      (constraints.maxWidth - spacing * (columns - 1)) /
+                      columns;
                   return Wrap(
                     spacing: spacing,
                     runSpacing: spacing,

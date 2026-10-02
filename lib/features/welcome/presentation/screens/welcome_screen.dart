@@ -15,9 +15,12 @@ import 'package:kommerze_mobile/features/sales_history/presentation/widgets/canc
 import 'package:kommerze_mobile/features/inventory/presentation/controllers/inventory_controller.dart';
 import 'package:kommerze_mobile/features/branch_operation/presentation/controllers/branch_operation_controller.dart';
 import 'package:kommerze_mobile/core/widgets/app_popup_menu_label.dart';
+import 'package:kommerze_mobile/core/layout/app_breakpoints.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum _MenuLayout { list, grid }
+
+enum _SalesPeriod { today, shift }
 
 const _menuLayoutPreferenceKey = 'welcome_menu_layout';
 
@@ -68,93 +71,112 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   @override
   Widget build(BuildContext context) {
     final profilePhoto = ref.watch(profilePhotoControllerProvider).value;
+    final tabletLandscape = AppBreakpoints.isTabletLandscape(context);
 
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
-      body: SafeArea(
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 116),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _Header(photoBytes: profilePhoto),
-                  const SizedBox(height: 28),
-                  Text(
-                    '¡Hola, ${_firstName(widget.userName)}! 👋',
-                    style: const TextStyle(
-                      color: AppColors.navy,
-                      fontSize: 23,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.25,
-                    ),
+      body: Row(
+        children: [
+          if (tabletLandscape)
+            _TabletNavigation(
+              selectedIndex: _selectedIndex,
+              onSelected: _onNavigationSelected,
+              onAdd: _openSales,
+            ),
+          Expanded(
+            child: SafeArea(
+              bottom: false,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: tabletLandscape ? 1240 : 720,
                   ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    'Bienvenido a Kommerze',
-                    style: TextStyle(
-                      color: AppColors.textGrey,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  _SearchBar(onMenuLayoutPressed: _chooseMenuLayout),
-                  const SizedBox(height: 18),
-                  const _SalesCard(),
-                  const SizedBox(height: 26),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Módulos principales',
-                          style: TextStyle(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 116),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _Header(photoBytes: profilePhoto),
+                        const SizedBox(height: 28),
+                        Text(
+                          '¡Hola, ${_firstName(widget.userName)}! 👋',
+                          style: const TextStyle(
                             color: AppColors.navy,
-                            fontSize: 17,
+                            fontSize: 23,
                             fontWeight: FontWeight.w700,
+                            letterSpacing: -0.25,
                           ),
                         ),
-                      ),
-                      Icon(
-                        _menuLayout == _MenuLayout.list
-                            ? Icons.view_agenda_outlined
-                            : Icons.grid_view_rounded,
-                        color: AppColors.navy,
-                        size: 19,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 240),
-                    child: _menuLayout == _MenuLayout.list
-                        ? _ModuleList(
-                            key: const ValueKey('list'),
-                            onModuleTap: _openModule,
-                          )
-                        : _QuickAccessGrid(
-                            key: const ValueKey('grid'),
-                            onModuleTap: _openModule,
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Bienvenido a Kommerze',
+                          style: TextStyle(
+                            color: AppColors.textGrey,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
                           ),
+                        ),
+                        const SizedBox(height: 20),
+                        _SearchBar(onMenuLayoutPressed: _chooseMenuLayout),
+                        const SizedBox(height: 18),
+                        const _SalesCard(),
+                        const SizedBox(height: 26),
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Módulos principales',
+                                style: TextStyle(
+                                  color: AppColors.navy,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              _menuLayout == _MenuLayout.list
+                                  ? Icons.view_agenda_outlined
+                                  : Icons.grid_view_rounded,
+                              color: AppColors.navy,
+                              size: 19,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 240),
+                          child:
+                              !tabletLandscape &&
+                                  _menuLayout == _MenuLayout.list
+                              ? _ModuleList(
+                                  key: const ValueKey('list'),
+                                  onModuleTap: _openModule,
+                                )
+                              : _QuickAccessGrid(
+                                  key: const ValueKey('grid'),
+                                  onModuleTap: _openModule,
+                                ),
+                        ),
+                        const SizedBox(height: 22),
+                        const _RecentActivity(),
+                        const SizedBox(height: 18),
+                        const _PromoBanner(),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 22),
-                  const _RecentActivity(),
-                  const SizedBox(height: 18),
-                  const _PromoBanner(),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
-      bottomNavigationBar: _BottomNavigation(
-        selectedIndex: _selectedIndex,
-        onSelected: _onNavigationSelected,
-        onAdd: _openSales,
-      ),
+      bottomNavigationBar: tabletLandscape
+          ? null
+          : _BottomNavigation(
+              selectedIndex: _selectedIndex,
+              onSelected: _onNavigationSelected,
+              onAdd: _openSales,
+            ),
     );
   }
 
@@ -468,13 +490,29 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
-class _SalesCard extends ConsumerWidget {
+class _SalesCard extends ConsumerStatefulWidget {
   const _SalesCard();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final analytics = ref.watch(dailySalesAnalyticsProvider);
-    final data = analytics.value ?? const DailySalesAnalytics.empty();
+  ConsumerState<_SalesCard> createState() => _SalesCardState();
+}
+
+class _SalesCardState extends ConsumerState<_SalesCard> {
+  _SalesPeriod _period = _SalesPeriod.today;
+
+  @override
+  Widget build(BuildContext context) {
+    final sales = ref.watch(salesHistoryProvider);
+    final branchOperation = ref.watch(branchOperationControllerProvider);
+    final activeOperation = branchOperation.value?.activeOperation;
+    final shiftStart = activeOperation?.startDate;
+    final items = sales.value ?? const <SaleHistoryItem>[];
+    final isShift = _period == _SalesPeriod.shift;
+    final data = isShift
+        ? shiftStart == null
+              ? const DailySalesAnalytics.empty()
+              : DailySalesAnalytics.fromRange(items, start: shiftStart)
+        : DailySalesAnalytics.fromItems(items);
     final variation = data.variationPercentage;
     final positive = variation >= 0;
     return Container(
@@ -505,7 +543,10 @@ class _SalesCard extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Ventas del día', style: _whiteLabel),
+                    Text(
+                      isShift ? 'Ventas de la jornada' : 'Ventas del día',
+                      style: _whiteLabel,
+                    ),
                     const SizedBox(height: 3),
                     Text(
                       _homeMoney(data.todayTotal),
@@ -518,30 +559,42 @@ class _SalesCard extends ConsumerWidget {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today_outlined,
-                      color: Colors.white,
-                      size: 15,
-                    ),
-                    SizedBox(width: 5),
-                    Text('Hoy', style: _whiteLabel),
-                    SizedBox(width: 5),
-                    Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: Colors.white,
-                    ),
-                  ],
+              PopupMenuButton<_SalesPeriod>(
+                initialValue: _period,
+                tooltip: 'Periodo de ventas',
+                onSelected: (value) => setState(() => _period = value),
+                itemBuilder: (context) => const [
+                  PopupMenuItem(value: _SalesPeriod.today, child: Text('Hoy')),
+                  PopupMenuItem(
+                    value: _SalesPeriod.shift,
+                    child: Text('Jornada'),
+                  ),
+                ],
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.calendar_today_outlined,
+                        color: Colors.white,
+                        size: 15,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(isShift ? 'Jornada' : 'Hoy', style: _whiteLabel),
+                      const SizedBox(width: 5),
+                      const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: Colors.white,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -549,29 +602,40 @@ class _SalesCard extends ConsumerWidget {
           const SizedBox(height: 2),
           Row(
             children: [
-              const Text('vs. ayer', style: _whiteLabel),
+              Text(
+                isShift
+                    ? shiftStart == null
+                          ? 'No hay una jornada activa'
+                          : 'Desde ${_hourMinute(shiftStart)}'
+                    : 'vs. ayer',
+                style: _whiteLabel,
+              ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF00D58A).withValues(alpha: 0.17),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${positive ? '↗' : '↘'} ${variation.abs().toStringAsFixed(1)}%',
-                  style: TextStyle(
-                    color: positive
-                        ? const Color(0xFF00E59A)
-                        : const Color(0xFFFFA38F),
-                    fontWeight: FontWeight.w600,
+              if (!isShift)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00D58A).withValues(alpha: 0.17),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${positive ? '↗' : '↘'} ${variation.abs().toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      color: positive
+                          ? const Color(0xFF00E59A)
+                          : const Color(0xFFFFA38F),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 5),
           Expanded(
-            child: analytics.isLoading
+            child: sales.isLoading || (isShift && branchOperation.isLoading)
                 ? const Center(
                     child: SizedBox(
                       width: 20,
@@ -584,17 +648,21 @@ class _SalesCard extends ConsumerWidget {
                   )
                 : CustomPaint(
                     painter: _SalesChartPainter(data.hourlyTotals),
-                    child: data.todayTotal == 0
-                        ? const Center(
-                            child: Text(
-                              'Sin ventas registradas hoy',
-                              style: TextStyle(
-                                color: Colors.white60,
-                                fontSize: 10.5,
+                    child: SizedBox.expand(
+                      child: data.todayTotal == 0
+                          ? Center(
+                              child: Text(
+                                isShift
+                                    ? 'Sin ventas registradas en la jornada'
+                                    : 'Sin ventas registradas hoy',
+                                style: const TextStyle(
+                                  color: Colors.white60,
+                                  fontSize: 10.5,
+                                ),
                               ),
-                            ),
-                          )
-                        : null,
+                            )
+                          : null,
+                    ),
                   ),
           ),
           const Row(
@@ -610,6 +678,12 @@ class _SalesCard extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  String _hourMinute(DateTime value) {
+    final local = value.isUtc ? value.toLocal() : value;
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
   }
 }
 
@@ -872,7 +946,12 @@ class _QuickAccessGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = (constraints.maxWidth - 14) / 2;
+        final columns = constraints.maxWidth >= 1000
+            ? 4
+            : constraints.maxWidth >= 700
+            ? 3
+            : 2;
+        final width = (constraints.maxWidth - (14 * (columns - 1))) / columns;
         return Wrap(
           spacing: 14,
           runSpacing: 14,
@@ -888,6 +967,125 @@ class _QuickAccessGrid extends StatelessWidget {
       },
     );
   }
+}
+
+class _TabletNavigation extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+  final VoidCallback onAdd;
+
+  const _TabletNavigation({
+    required this.selectedIndex,
+    required this.onSelected,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+    right: false,
+    child: Container(
+      width: 94,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(right: BorderSide(color: Color(0xFFE7ECF5))),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 18),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.asset(
+              'assets/icon/app_icon.png',
+              width: 54,
+              height: 54,
+            ),
+          ),
+          const SizedBox(height: 30),
+          _RailItem(
+            label: 'Inicio',
+            icon: Icons.home_rounded,
+            selected: selectedIndex == 0,
+            onTap: () => onSelected(0),
+          ),
+          _RailItem(
+            label: 'Ventas',
+            icon: Icons.shopping_cart_rounded,
+            selected: selectedIndex == 1,
+            onTap: () => onSelected(1),
+          ),
+          const Spacer(),
+          FloatingActionButton.small(
+            heroTag: 'tablet-add-sale',
+            onPressed: onAdd,
+            backgroundColor: AppColors.primaryBlue,
+            foregroundColor: Colors.white,
+            child: const Icon(Icons.add_rounded),
+          ),
+          const SizedBox(height: 18),
+          _RailItem(
+            label: 'Reportes',
+            icon: Icons.bar_chart_rounded,
+            selected: selectedIndex == 2,
+            onTap: () => onSelected(2),
+          ),
+          _RailItem(
+            label: 'Más',
+            icon: Icons.grid_view_rounded,
+            selected: selectedIndex == 3,
+            onTap: () => onSelected(3),
+          ),
+          const SizedBox(height: 14),
+        ],
+      ),
+    ),
+  );
+}
+
+class _RailItem extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+  const _RailItem({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    child: Material(
+      color: selected ? AppColors.primarySurface : Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: SizedBox(
+          height: 62,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: selected ? AppColors.primaryBlue : AppColors.textGrey,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? AppColors.primaryBlue : AppColors.textGrey,
+                  fontSize: 10.5,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _QuickCard extends StatelessWidget {
@@ -1413,13 +1611,20 @@ class _SalesChartPainter extends CustomPainter {
     final chartHeight = baseline - top;
     final points = <Offset>[
       for (var index = 0; index < values.length; index++)
-        Offset(
-          values.length == 1 ? 0 : size.width * index / (values.length - 1),
-          maximum <= 0
-              ? baseline
-              : baseline - (values[index] / maximum) * chartHeight,
-        ),
+        if (values[index] > 0)
+          Offset(
+            size.width * index / 23,
+            maximum <= 0
+                ? baseline
+                : baseline - (values[index] / maximum) * chartHeight,
+          ),
     ];
+    if (points.isEmpty) return;
+
+    if (points.length == 1) {
+      _drawActivePoint(canvas, points.single);
+      return;
+    }
     final path = Path()..moveTo(points.first.dx, points.first.dy);
     for (var i = 1; i < points.length; i++) {
       final previous = points[i - 1];
@@ -1461,18 +1666,18 @@ class _SalesChartPainter extends CustomPainter {
         ..strokeWidth = 4
         ..strokeCap = StrokeCap.round,
     );
-    final activePoints = <Offset>[
-      for (var index = 0; index < points.length; index++)
-        if (values[index] > 0) points[index],
-    ];
-    for (final point in activePoints) {
-      canvas.drawCircle(point, 5, Paint()..color = const Color(0xFF6EDCFF));
-      canvas.drawCircle(
-        point,
-        9,
-        Paint()..color = const Color(0xFF25B7FF).withValues(alpha: .22),
-      );
+    for (final point in points) {
+      _drawActivePoint(canvas, point);
     }
+  }
+
+  void _drawActivePoint(Canvas canvas, Offset point) {
+    canvas.drawCircle(point, 5, Paint()..color = const Color(0xFF6EDCFF));
+    canvas.drawCircle(
+      point,
+      9,
+      Paint()..color = const Color(0xFF25B7FF).withValues(alpha: .22),
+    );
   }
 
   @override

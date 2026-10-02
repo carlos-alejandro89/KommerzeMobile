@@ -89,6 +89,33 @@ class DailySalesAnalytics {
       hourlyTotals: List.unmodifiable(hourly),
     );
   }
+
+  factory DailySalesAnalytics.fromRange(
+    List<SaleHistoryItem> items, {
+    required DateTime start,
+    DateTime? end,
+  }) {
+    final localStart = start.isUtc ? start.toLocal() : start;
+    final localEnd = end == null
+        ? DateTime.now()
+        : (end.isUtc ? end.toLocal() : end);
+    final hourly = List<double>.filled(24, 0);
+    var total = 0.0;
+
+    for (final item in items) {
+      if (item.statusName.toLowerCase() == 'cancelado') continue;
+      final date = item.date.isUtc ? item.date.toLocal() : item.date;
+      if (date.isBefore(localStart) || date.isAfter(localEnd)) continue;
+      total += item.total;
+      hourly[date.hour] += item.total;
+    }
+
+    return DailySalesAnalytics(
+      todayTotal: total,
+      yesterdayTotal: 0,
+      hourlyTotals: List.unmodifiable(hourly),
+    );
+  }
 }
 
 final dailySalesAnalyticsProvider = FutureProvider<DailySalesAnalytics>((

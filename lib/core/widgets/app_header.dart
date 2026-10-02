@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
+import 'package:kommerze_mobile/core/layout/app_breakpoints.dart';
 
 /// Encabezado reutilizable de Kommerze.
 ///
@@ -53,66 +54,68 @@ class AppHeader extends StatelessWidget {
           ),
           SafeArea(
             bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(
-                    height: 48,
-                    child: Row(
-                      children: [
-                        if (showBackButton) ...[
-                          IconButton(
-                            onPressed:
-                                onBack ?? () => Navigator.maybePop(context),
-                            padding: EdgeInsets.zero,
-                            alignment: Alignment.centerLeft,
-                            icon: const Icon(
-                              Icons.arrow_back_rounded,
-                              color: Colors.white,
-                              size: 27,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 21,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -.2,
-                                ),
+            child: AdaptiveContent(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      height: 48,
+                      child: Row(
+                        children: [
+                          if (showBackButton) ...[
+                            IconButton(
+                              onPressed:
+                                  onBack ?? () => Navigator.maybePop(context),
+                              padding: EdgeInsets.zero,
+                              alignment: Alignment.centerLeft,
+                              icon: const Icon(
+                                Icons.arrow_back_rounded,
+                                color: Colors.white,
+                                size: 27,
                               ),
-                              if (subtitle != null)
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                                 Text(
-                                  subtitle!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                  title,
                                   style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w400,
+                                    color: Colors.white,
+                                    fontSize: 21,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: -.2,
                                   ),
                                 ),
-                            ],
+                                if (subtitle != null)
+                                  Text(
+                                    subtitle!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
-                        ),
-                        ...actions,
-                      ],
+                          ...actions,
+                        ],
+                      ),
                     ),
-                  ),
-                  if (content != null) ...[
-                    const SizedBox(height: 10),
-                    Expanded(child: content!),
+                    if (content != null) ...[
+                      const SizedBox(height: 10),
+                      Expanded(child: content!),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),

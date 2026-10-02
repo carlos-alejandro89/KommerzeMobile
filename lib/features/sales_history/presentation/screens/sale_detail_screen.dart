@@ -6,6 +6,10 @@ import 'package:kommerze_mobile/core/widgets/product_image.dart';
 import 'package:kommerze_mobile/features/sales_history/data/services/sale_receipt_pdf_service.dart';
 import 'package:kommerze_mobile/features/sales_history/domain/entities/sale_detail.dart';
 import 'package:kommerze_mobile/features/sales_history/presentation/controllers/sales_history_controller.dart';
+import 'package:kommerze_mobile/features/printer/data/services/thermal_printer_service.dart';
+import 'package:kommerze_mobile/features/printer/presentation/controllers/printer_settings_controller.dart';
+import 'package:kommerze_mobile/features/license/presentation/controllers/license_activation_controller.dart';
+import 'package:kommerze_mobile/features/auth/presentation/controllers/auth_controller.dart';
 
 class SaleDetailScreen extends ConsumerWidget {
   final String orderGuid;
@@ -26,8 +30,10 @@ class SaleDetailScreen extends ConsumerWidget {
             showBackButton: true,
             actions: [
               IconButton(
-                tooltip: 'Imprimir comprobante',
-                onPressed: sale == null ? null : () => _print(context, sale),
+                tooltip: 'Reimprimir ticket',
+                onPressed: sale == null
+                    ? null
+                    : () => _reprint(context, ref, sale),
                 icon: const Icon(
                   Icons.print_outlined,
                   color: Colors.white,
@@ -39,9 +45,18 @@ class SaleDetailScreen extends ConsumerWidget {
                 onSelected: sale == null
                     ? null
                     : (value) {
+                        if (value == 'pdf') _printPdf(context, sale);
                         if (value == 'send') _share(context, sale);
                       },
                 itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'pdf',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.picture_as_pdf_outlined),
+                      title: Text('Imprimir PDF'),
+                    ),
+                  ),
                   PopupMenuItem(
                     value: 'send',
                     child: ListTile(
@@ -65,7 +80,7 @@ class SaleDetailScreen extends ConsumerWidget {
                   ? const Center(child: Text('La venta ya no está disponible.'))
                   : _DetailContent(
                       sale: sale,
-                      onPrint: () => _print(context, sale),
+                      onPrint: () => _reprint(context, ref, sale),
                       onShare: () => _share(context, sale),
                     ),
             ),
@@ -75,10 +90,68 @@ class SaleDetailScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _print(BuildContext context, SaleDetail sale) async {
+  Future<void> _printPdf(BuildContext context, SaleDetail sale) async {
     try {
       await SaleReceiptPdfService.printReceipt(sale);
     } catch (error) {
+      if (context.mounted) _message(context, error.toString());
+    }
+  }
+
+  Future<void> _reprint(
+    BuildContext context,
+    WidgetRef ref,
+    SaleDetail sale,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('Enviando ticket a la miniprinter...'),
+          ],
+        ),
+        duration: Duration(seconds: 20),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    try {
+      final settings = ref.read(printerSettingsControllerProvider);
+      final details = await ref.read(licenseDetailsProvider.future);
+      final branch = details?.branch;
+      await const ThermalPrinterService().reprintSale(
+        sale,
+        settings,
+        branchAddress: [
+          branch?.address ?? '',
+          branch?.city ?? '',
+          branch?.state ?? '',
+          if ((branch?.postalCode ?? '').isNotEmpty)
+            'C.P. ${branch!.postalCode}',
+        ].where((value) => value.trim().isNotEmpty).join(', '),
+        branchPhone: branch?.phone ?? '',
+        branchEmail: branch?.email ?? '',
+        cashierName: ref.read(authControllerProvider).value?.name ?? '',
+      );
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Ticket reimpreso correctamente.'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.success,
+          ),
+        );
+    } catch (error) {
+      messenger.hideCurrentSnackBar();
       if (context.mounted) _message(context, error.toString());
     }
   }
@@ -209,7 +282,7 @@ class _DetailContent extends StatelessWidget {
             child: FilledButton.icon(
               onPressed: onPrint,
               icon: const Icon(Icons.print_outlined),
-              label: const Text('Imprimir'),
+              label: const Text('Reimprimir ticket'),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primaryBlue,
                 padding: const EdgeInsets.symmetric(vertical: 14),

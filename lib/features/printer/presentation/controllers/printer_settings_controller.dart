@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:convert';
 import 'package:kommerze_mobile/core/storage/shared_prefs_provider.dart';
 import 'package:kommerze_mobile/core/storage/secure_storage_provider.dart';
 import 'package:kommerze_mobile/features/printer/domain/entities/printer_settings.dart';
@@ -17,6 +18,14 @@ class PrinterSettingsController extends Notifier<PrinterSettings> {
   static const _senderNameKey = 'smtp_sender_name';
   static const _smtpSecurityKey = 'smtp_security';
   static const smtpPasswordKey = 'smtp_password';
+  static const _businessNameKey = 'receipt_business_name';
+  static const _showBranchNameKey = 'receipt_show_branch_name';
+  static const _showBranchAddressKey = 'receipt_show_branch_address';
+  static const _showBranchPhoneKey = 'receipt_show_branch_phone';
+  static const _showBranchEmailKey = 'receipt_show_branch_email';
+  static const _paperWidthKey = 'receipt_paper_width';
+  static const _logoKeyCustom = 'receipt_logo_base64';
+  static const _legendsKey = 'receipt_legend_groups';
 
   @override
   PrinterSettings build() {
@@ -37,6 +46,14 @@ class PrinterSettingsController extends Notifier<PrinterSettings> {
         (value) => value.name == preferences.getString(_smtpSecurityKey),
         orElse: () => SmtpSecurity.startTls,
       ),
+      businessName: preferences.getString(_businessNameKey) ?? 'KOMMERZE',
+      showBranchName: preferences.getBool(_showBranchNameKey) ?? true,
+      showBranchAddress: preferences.getBool(_showBranchAddressKey) ?? false,
+      showBranchPhone: preferences.getBool(_showBranchPhoneKey) ?? false,
+      showBranchEmail: preferences.getBool(_showBranchEmailKey) ?? false,
+      paperWidthMm: preferences.getInt(_paperWidthKey) == 58 ? 58 : 80,
+      logoBase64: preferences.getString(_logoKeyCustom) ?? '',
+      legends: _decodeLegends(preferences.getString(_legendsKey)),
     );
   }
 
@@ -55,6 +72,17 @@ class PrinterSettingsController extends Notifier<PrinterSettings> {
       preferences.setString(_senderEmailKey, settings.senderEmail.trim()),
       preferences.setString(_senderNameKey, settings.senderName.trim()),
       preferences.setString(_smtpSecurityKey, settings.smtpSecurity.name),
+      preferences.setString(_businessNameKey, settings.businessName.trim()),
+      preferences.setBool(_showBranchNameKey, settings.showBranchName),
+      preferences.setBool(_showBranchAddressKey, settings.showBranchAddress),
+      preferences.setBool(_showBranchPhoneKey, settings.showBranchPhone),
+      preferences.setBool(_showBranchEmailKey, settings.showBranchEmail),
+      preferences.setInt(_paperWidthKey, settings.paperWidthMm),
+      preferences.setString(_logoKeyCustom, settings.logoBase64),
+      preferences.setString(
+        _legendsKey,
+        jsonEncode(settings.legends.map((legend) => legend.toJson()).toList()),
+      ),
     ]);
     state = settings.copyWith(
       ipAddress: settings.ipAddress.trim(),
@@ -62,6 +90,7 @@ class PrinterSettingsController extends Notifier<PrinterSettings> {
       smtpUsername: settings.smtpUsername.trim(),
       senderEmail: settings.senderEmail.trim(),
       senderName: settings.senderName.trim(),
+      businessName: settings.businessName.trim(),
     );
   }
 
@@ -71,6 +100,19 @@ class PrinterSettingsController extends Notifier<PrinterSettings> {
   Future<void> saveEmailPassword(String password) => ref
       .read(secureStorageProvider)
       .write(key: smtpPasswordKey, value: password);
+
+  static List<ReceiptLegend> _decodeLegends(String? value) {
+    if (value == null || value.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(value) as List<dynamic>;
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map(ReceiptLegend.fromJson)
+          .toList(growable: false);
+    } catch (_) {
+      return const [];
+    }
+  }
 }
 
 final printerSettingsControllerProvider =

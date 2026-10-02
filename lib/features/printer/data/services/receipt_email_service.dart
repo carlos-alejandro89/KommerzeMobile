@@ -1,7 +1,8 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/services.dart';
 import 'package:mailer/mailer.dart' as mailer;
 import 'package:mailer/smtp_server.dart';
 import 'package:pdf/pdf.dart';
@@ -43,7 +44,7 @@ class ReceiptEmailService {
       ssl: settings.smtpSecurity == SmtpSecurity.sslTls,
       allowInsecure: settings.smtpSecurity == SmtpSecurity.none,
     );
-    final pdf = await _buildPdf(receipt);
+    final pdf = await _buildPdf(receipt, settings);
     final message = mailer.Message()
       ..from = mailer.Address(settings.senderEmail, settings.senderName)
       ..recipients.add(destination)
@@ -76,34 +77,69 @@ class ReceiptEmailService {
     }
   }
 
-  Future<Uint8List> _buildPdf(SaleReceipt receipt) async {
+  Future<Uint8List> _buildPdf(
+    SaleReceipt receipt,
+    PrinterSettings settings,
+  ) async {
     final document = pw.Document();
-    final height = (120 + receipt.items.length * 18) * PdfPageFormat.mm;
+    final height =
+        (105 + receipt.items.length * 16 + settings.legends.length * 15) *
+        PdfPageFormat.mm;
+    pw.MemoryImage? logo;
+    if (settings.includeLogo) {
+      try {
+        final bytes = settings.logoBase64.isNotEmpty
+            ? base64Decode(settings.logoBase64)
+            : (await rootBundle.load(
+                'assets/icon/app_icon.png',
+              )).buffer.asUint8List();
+        logo = pw.MemoryImage(bytes);
+      } catch (_) {}
+    }
     document.addPage(
       pw.Page(
         pageFormat: PdfPageFormat(
-          80 * PdfPageFormat.mm,
+          settings.paperWidthMm * PdfPageFormat.mm,
           height,
           marginAll: 5 * PdfPageFormat.mm,
         ),
         build: (_) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.stretch,
           children: [
+            if (logo != null) ...[
+              pw.Center(
+                child: pw.Image(
+                  logo,
+                  width: 42 * PdfPageFormat.mm,
+                  height: 16 * PdfPageFormat.mm,
+                  fit: pw.BoxFit.contain,
+                ),
+              ),
+              pw.SizedBox(height: 4),
+            ],
             pw.Text(
-              'KOMMERZE',
+              settings.businessName.trim().isEmpty
+                  ? 'KOMMERZE'
+                  : settings.businessName.toUpperCase(),
               textAlign: pw.TextAlign.center,
               style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
             ),
-            pw.Text(
-              'RECIBO DE VENTA',
-              textAlign: pw.TextAlign.center,
-              style: const pw.TextStyle(fontSize: 9),
-            ),
+            if (settings.showBranchName && receipt.branchName.isNotEmpty)
+              pw.Text(receipt.branchName, textAlign: pw.TextAlign.center),
+            if (settings.showBranchAddress && receipt.branchAddress.isNotEmpty)
+              pw.Text(receipt.branchAddress, textAlign: pw.TextAlign.center),
+            if (settings.showBranchPhone && receipt.branchPhone.isNotEmpty)
+              pw.Text(receipt.branchPhone, textAlign: pw.TextAlign.center),
+            if (settings.showBranchEmail && receipt.branchEmail.isNotEmpty)
+              pw.Text(receipt.branchEmail, textAlign: pw.TextAlign.center),
             pw.SizedBox(height: 10),
-            _row('Folio', receipt.folio),
-            _row('Fecha', _date(receipt.order.date)),
-            _row('Cliente', receipt.client.name),
             _divider(),
+            _row('Folio:', receipt.order.folio.toString()),
+            _row('Fecha:', _date(receipt.order.date)),
+            _row('Cajero:', receipt.cashierName),
+            _row('Cliente:', receipt.client.name),
+            _divider(),
+            _row('Descripción', 'Importe', bold: true),
             for (final item in receipt.items) ...[
               pw.Text(
                 item.product.displayName,
@@ -116,27 +152,31 @@ class ReceiptEmailService {
               pw.SizedBox(height: 5),
             ],
             _divider(),
-            _row('Subtotal', _money(receipt.subtotal)),
-            if (receipt.discount > 0)
-              _row('Descuento', '-${_money(receipt.discount)}'),
+            _row('Subtotal:', _money(receipt.subtotal)),
+            _row('Descuento:', _money(receipt.discount)),
             pw.SizedBox(height: 3),
             pw.DefaultTextStyle(
               style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
-              child: _row('TOTAL', _money(receipt.total)),
+              child: _row('TOTAL:', _money(receipt.total)),
+            ),
+            _row('Pago:', _money(receipt.paid)),
+            _row(
+              'Cambio:',
+              _money((receipt.paid - receipt.total).clamp(0, double.infinity)),
             ),
             _divider(),
-            _row('Total pagado', _money(receipt.paid)),
-            pw.SizedBox(height: 14),
-            pw.Text(
-              '¡GRACIAS POR SU COMPRA!',
-              textAlign: pw.TextAlign.center,
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-            ),
-            pw.Text(
-              'Kommerze · Vende · Gestiona · Crece',
-              textAlign: pw.TextAlign.center,
-              style: const pw.TextStyle(fontSize: 8),
-            ),
+            for (var index = 0; index < settings.legends.length; index++) ...[
+              if (index > 0) _divider(),
+              pw.Text(
+                settings.legends[index].text,
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(
+                  fontWeight: settings.legends[index].bold
+                      ? pw.FontWeight.bold
+                      : pw.FontWeight.normal,
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -144,14 +184,26 @@ class ReceiptEmailService {
     return document.save();
   }
 
-  pw.Widget _row(String label, String value) => pw.Padding(
+  pw.Widget _row(String label, String value, {bool bold = false}) => pw.Padding(
     padding: const pw.EdgeInsets.symmetric(vertical: 2),
     child: pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Expanded(child: pw.Text(label)),
+        pw.Expanded(
+          child: pw.Text(
+            label,
+            style: pw.TextStyle(
+              fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+            ),
+          ),
+        ),
         pw.SizedBox(width: 8),
-        pw.Text(value),
+        pw.Text(
+          value,
+          style: pw.TextStyle(
+            fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+          ),
+        ),
       ],
     ),
   );
