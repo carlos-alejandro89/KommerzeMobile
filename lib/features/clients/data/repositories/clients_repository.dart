@@ -29,7 +29,7 @@ class ClientsRepository {
 
 final clientsRepositoryProvider = Provider<ClientsRepository>((ref) {
   return ClientsRepository(
-    ref.read(clientsApiProvider),
+    ref.watch(clientsApiProvider),
     ref.read(clientsLocalDataSourceProvider),
   );
 });

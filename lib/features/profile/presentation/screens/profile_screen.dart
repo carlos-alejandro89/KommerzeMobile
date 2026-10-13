@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
 import 'package:kommerze_mobile/core/constants/app_constants.dart';
+import 'package:kommerze_mobile/core/device/device_type_controller.dart';
 import 'package:kommerze_mobile/core/widgets/app_header.dart';
 import 'package:kommerze_mobile/features/auth/domain/entities/usuario_entity.dart';
 import 'package:kommerze_mobile/features/auth/presentation/controllers/auth_controller.dart';
@@ -70,6 +71,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final authentication = ref.watch(authControllerProvider);
     final photoBytes = ref.watch(profilePhotoControllerProvider).value;
+    final deviceType = ref.watch(deviceTypeControllerProvider);
     final user = authentication.value;
 
     return Scaffold(
@@ -155,6 +157,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _ProfileSection(
                       title: 'Preferencias',
                       items: [
+                        _ProfileItem(
+                          icon: Icons.devices_other_rounded,
+                          label: 'Tipo de dispositivo',
+                          value: deviceType.label,
+                          onTap: () => _showDeviceTypeSelector(deviceType),
+                        ),
                         const _ProfileItem(
                           icon: Icons.palette_outlined,
                           label: 'Tema de la aplicación',
@@ -177,6 +185,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           onTap: () =>
                               context.push(AppConstants.printerSettingsRoute),
                         ),
+                        _ProfileItem(
+                          icon: Icons.cloud_outlined,
+                          label: 'Servidor',
+                          value: 'Configurar',
+                          onTap: () =>
+                              context.push(AppConstants.serverSettingsRoute),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 18),
@@ -196,6 +211,70 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         onProtectedTap: () => LicenseGuard.ensureActive(context, ref),
       ),
     );
+  }
+
+  Future<void> _showDeviceTypeSelector(DeviceType current) async {
+    final selected = await showModalBottomSheet<DeviceType>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Tipo de dispositivo',
+                style: TextStyle(
+                  color: AppColors.navy,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Elige la experiencia que se mostrará al abrir Ventas.',
+                style: TextStyle(color: AppColors.textGrey),
+              ),
+              const SizedBox(height: 18),
+              for (final type in DeviceType.values) ...[
+                ListTile(
+                  onTap: () => Navigator.pop(context, type),
+                  selected: current == type,
+                  selectedTileColor: AppColors.primarySurface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  leading: Icon(
+                    type == DeviceType.pda
+                        ? Icons.barcode_reader
+                        : Icons.smartphone_rounded,
+                    color: AppColors.primaryBlue,
+                  ),
+                  title: Text(type.label),
+                  subtitle: Text(
+                    type == DeviceType.pda
+                        ? 'Captura rápida mediante lector de códigos.'
+                        : 'Catálogo visual y flujo de venta actual.',
+                  ),
+                  trailing: current == type
+                      ? const Icon(
+                          Icons.check_circle,
+                          color: AppColors.primaryBlue,
+                        )
+                      : null,
+                ),
+                const SizedBox(height: 8),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected != null) {
+      await ref.read(deviceTypeControllerProvider.notifier).save(selected);
+    }
   }
 }
 

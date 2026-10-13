@@ -58,5 +58,5 @@ class StatusesApiException implements Exception {
 }
 
 final statusesApiProvider = Provider<StatusesApi>(
-  (ref) => StatusesApi(ref.read(dioProvider)),
+  (ref) => StatusesApi(ref.watch(dioProvider)),
 );

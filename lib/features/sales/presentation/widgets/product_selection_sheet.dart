@@ -364,7 +364,7 @@ class _ProductSelectionSheetState extends State<ProductSelectionSheet> {
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(13),
+                              borderRadius: BorderRadius.circular(14),
                             ),
                           ),
                         ),

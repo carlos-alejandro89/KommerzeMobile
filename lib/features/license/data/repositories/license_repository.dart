@@ -16,17 +16,19 @@ class LicenseRepository {
     required String licenseKey,
     required String deviceName,
   }) async {
+    final normalizedLicenseKey =
+        LicenseActivationRequestDto.normalizeLicenseKey(licenseKey);
     final result = await api.activate(
       LicenseActivationRequestDto(
         machineId: machineId,
-        licenseKey: licenseKey,
+        licenseKey: normalizedLicenseKey,
         deviceName: deviceName,
       ),
     );
     if (result.success) {
       await local.saveActiveLicense(
         machineId: machineId,
-        licenseKey: licenseKey,
+        licenseKey: normalizedLicenseKey,
         deviceName: deviceName,
         activation: result,
       );
@@ -43,7 +45,7 @@ class LicenseRepository {
 
 final licenseRepositoryProvider = Provider<LicenseRepository>((ref) {
   return LicenseRepository(
-    ref.read(licenseApiProvider),
+    ref.watch(licenseApiProvider),
     ref.read(licenseLocalDataSourceProvider),
   );
 });

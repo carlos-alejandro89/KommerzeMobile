@@ -60,5 +60,5 @@ class OrderTypesApiException implements Exception {
 }
 
 final orderTypesApiProvider = Provider<OrderTypesApi>(
-  (ref) => OrderTypesApi(ref.read(dioProvider)),
+  (ref) => OrderTypesApi(ref.watch(dioProvider)),
 );

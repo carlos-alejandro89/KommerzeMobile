@@ -79,5 +79,5 @@ class LoansSyncException implements Exception {
 }
 
 final loansRemoteDataSourceProvider = Provider<LoansRemoteDataSource>((ref) {
-  return LoansRemoteDataSource(ref.read(dioProvider));
+  return LoansRemoteDataSource(ref.watch(dioProvider));
 });

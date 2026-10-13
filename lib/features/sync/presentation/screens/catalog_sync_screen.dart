@@ -4,9 +4,13 @@ import 'package:kommerze_mobile/core/constants/app_colors.dart';
 import 'package:kommerze_mobile/core/widgets/app_header.dart';
 import 'package:kommerze_mobile/features/sync/domain/entities/catalog_sync_item.dart';
 import 'package:kommerze_mobile/features/sync/presentation/controllers/catalog_sync_controller.dart';
+import 'package:go_router/go_router.dart';
+import 'package:kommerze_mobile/core/constants/app_constants.dart';
+import 'package:kommerze_mobile/core/setup/app_setup_controller.dart';
 
 class CatalogSyncScreen extends ConsumerStatefulWidget {
-  const CatalogSyncScreen({super.key});
+  final bool initialSetup;
+  const CatalogSyncScreen({super.key, this.initialSetup = false});
 
   @override
   ConsumerState<CatalogSyncScreen> createState() => _CatalogSyncScreenState();
@@ -17,6 +21,10 @@ class _CatalogSyncScreenState extends ConsumerState<CatalogSyncScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (widget.initialSetup) {
+        await _runInitialSync();
+        return;
+      }
       await ref
           .read(catalogSyncControllerProvider.notifier)
           .restoreLocalStatus();
@@ -28,6 +36,19 @@ class _CatalogSyncScreenState extends ConsumerState<CatalogSyncScreen> {
     });
   }
 
+  Future<void> _runInitialSync() async {
+    final success = await ref
+        .read(catalogSyncControllerProvider.notifier)
+        .synchronizeAll();
+    if (!mounted) return;
+    if (!success) {
+      setState(() {});
+      return;
+    }
+    await ref.read(appSetupControllerProvider.notifier).completeInitialSync();
+    if (mounted) context.go(AppConstants.welcomeScreenRoute);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(catalogSyncControllerProvider);
@@ -35,11 +56,13 @@ class _CatalogSyncScreenState extends ConsumerState<CatalogSyncScreen> {
       backgroundColor: AppColors.lightBackground,
       body: Column(
         children: [
-          const AppHeader(
+          AppHeader(
             title: 'Sync',
-            subtitle: 'Mantén la información local actualizada',
+            subtitle: widget.initialSetup
+                ? 'Preparando catálogos para este dispositivo'
+                : 'Mantén la información local actualizada',
             height: 112,
-            showBackButton: true,
+            showBackButton: !widget.initialSetup,
           ),
           Expanded(
             child: ListView(
@@ -47,7 +70,9 @@ class _CatalogSyncScreenState extends ConsumerState<CatalogSyncScreen> {
               children: [
                 _LastSyncCard(
                   state: state,
-                  onSyncAll: () => _syncAll(context, ref),
+                  onSyncAll: widget.initialSetup
+                      ? _runInitialSync
+                      : () => _syncAll(context, ref),
                 ),
                 const SizedBox(height: 22),
                 const Text(

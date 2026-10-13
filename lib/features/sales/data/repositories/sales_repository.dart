@@ -73,6 +73,6 @@ class SalesSyncReport {
 final salesRepositoryProvider = Provider<SalesRepository>(
   (ref) => SalesRepository(
     ref.read(salesLocalDataSourceProvider),
-    ref.read(salesRemoteDataSourceProvider),
+    ref.watch(salesRemoteDataSourceProvider),
   ),
 );

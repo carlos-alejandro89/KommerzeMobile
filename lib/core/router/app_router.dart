@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kommerze_mobile/core/constants/app_constants.dart';
 import 'package:kommerze_mobile/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:kommerze_mobile/core/setup/app_setup_controller.dart';
+import 'package:kommerze_mobile/features/onboarding/presentation/screens/setup_onboarding_screen.dart';
+import 'package:kommerze_mobile/features/onboarding/presentation/screens/server_settings_screen.dart';
 import 'package:kommerze_mobile/features/auth/presentation/screens/login_screen.dart';
 import 'package:kommerze_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:kommerze_mobile/features/printer/presentation/screens/printer_settings_screen.dart';
@@ -13,7 +16,7 @@ import 'package:kommerze_mobile/features/clients/presentation/screens/clients_sc
 import 'package:kommerze_mobile/features/clients/presentation/screens/client_form_screen.dart';
 import 'package:kommerze_mobile/features/clients/domain/entities/client.dart';
 import 'package:kommerze_mobile/features/splash/presentation/screens/splash_screen.dart';
-import 'package:kommerze_mobile/features/sales/presentation/screens/sales_screen.dart';
+import 'package:kommerze_mobile/features/sales/presentation/screens/sales_entry_screen.dart';
 import 'package:kommerze_mobile/features/checkout/presentation/screens/checkout_screen.dart';
 import 'package:kommerze_mobile/features/checkout/presentation/screens/client_selection_screen.dart';
 import 'package:kommerze_mobile/features/purchases/presentation/screens/purchases_screen.dart';
@@ -32,19 +35,37 @@ import 'package:kommerze_mobile/features/reports/presentation/screens/profit_rep
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ValueNotifier(ref.read(authControllerProvider));
+  final setupRefresh = ValueNotifier(0);
 
   ref.listen(authControllerProvider, (_, next) => authState.value = next);
-  ref.onDispose(authState.dispose);
+  ref.listen(
+    appSetupControllerProvider,
+    (_, _) => setupRefresh.value = setupRefresh.value + 1,
+  );
+  ref.onDispose(() {
+    authState.dispose();
+    setupRefresh.dispose();
+  });
 
   return GoRouter(
     initialLocation: AppConstants.splashScreenRoute,
-    refreshListenable: authState,
+    refreshListenable: Listenable.merge([authState, setupRefresh]),
     redirect: (context, state) {
       final authentication = ref.read(authControllerProvider);
+      final setup = ref.read(appSetupControllerProvider);
       final path = state.uri.path;
 
       if (path == AppConstants.splashScreenRoute || authentication.isLoading) {
         return null;
+      }
+
+      if (!setup.onboardingComplete) {
+        return path == AppConstants.onboardingRoute
+            ? null
+            : AppConstants.onboardingRoute;
+      }
+      if (path == AppConstants.onboardingRoute) {
+        return AppConstants.loginScreenRoute;
       }
 
       final isAuthenticated = authentication.value != null;
@@ -52,7 +73,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return AppConstants.loginScreenRoute;
       }
       if (isAuthenticated && path == AppConstants.loginScreenRoute) {
-        return AppConstants.welcomeScreenRoute;
+        return setup.initialSyncComplete
+            ? AppConstants.welcomeScreenRoute
+            : AppConstants.catalogSyncScreenRoute;
+      }
+      if (isAuthenticated &&
+          !setup.initialSyncComplete &&
+          path != AppConstants.catalogSyncScreenRoute) {
+        return AppConstants.catalogSyncScreenRoute;
       }
       return null;
     },
@@ -64,6 +92,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppConstants.loginScreenRoute,
         builder: (_, _) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: AppConstants.onboardingRoute,
+        builder: (_, _) => const SetupOnboardingScreen(),
       ),
       GoRoute(
         path: AppConstants.welcomeScreenRoute,
@@ -78,6 +110,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppConstants.printerSettingsRoute,
         builder: (_, _) => const PrinterSettingsScreen(),
+      ),
+      GoRoute(
+        path: AppConstants.serverSettingsRoute,
+        builder: (_, _) => const ServerSettingsScreen(),
       ),
       GoRoute(
         path: AppConstants.licenseScreenRoute,
@@ -101,7 +137,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppConstants.salesScreenRoute,
-        builder: (_, _) => const SalesScreen(),
+        builder: (_, _) => const SalesEntryScreen(),
       ),
       GoRoute(
         path: AppConstants.purchasesScreenRoute,
@@ -117,7 +153,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppConstants.catalogSyncScreenRoute,
-        builder: (_, _) => const CatalogSyncScreen(),
+        builder: (_, _) => CatalogSyncScreen(
+          initialSetup: !ref
+              .read(appSetupControllerProvider)
+              .initialSyncComplete,
+        ),
       ),
       GoRoute(
         path: AppConstants.salesHistoryScreenRoute,

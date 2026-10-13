@@ -61,5 +61,5 @@ class AuthApiException implements Exception {
 }
 
 final authApiProvider = Provider<AuthApi>((ref) {
-  return AuthApi(ref.read(dioProvider));
+  return AuthApi(ref.watch(dioProvider));
 });

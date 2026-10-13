@@ -100,7 +100,7 @@ class CollectionsSyncReport {
 final collectionsRepositoryProvider = Provider<CollectionsRepository>((ref) {
   return CollectionsRepository(
     ref.read(collectionsLocalDataSourceProvider),
-    ref.read(collectionsRemoteDataSourceProvider),
+    ref.watch(collectionsRemoteDataSourceProvider),
     ref.read(authLocalProvider),
   );
 });

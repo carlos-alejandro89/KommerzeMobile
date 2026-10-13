@@ -40,7 +40,7 @@ class OrderTypesRepository {
 
 final orderTypesRepositoryProvider = Provider<OrderTypesRepository>(
   (ref) => OrderTypesRepository(
-    ref.read(orderTypesApiProvider),
+    ref.watch(orderTypesApiProvider),
     ref.read(orderTypesLocalDataSourceProvider),
   ),
 );

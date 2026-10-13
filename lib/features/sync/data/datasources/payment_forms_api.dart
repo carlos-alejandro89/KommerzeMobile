@@ -56,5 +56,5 @@ class PaymentFormsApiException implements Exception {
 }
 
 final paymentFormsApiProvider = Provider<PaymentFormsApi>(
-  (ref) => PaymentFormsApi(ref.read(dioProvider)),
+  (ref) => PaymentFormsApi(ref.watch(dioProvider)),
 );

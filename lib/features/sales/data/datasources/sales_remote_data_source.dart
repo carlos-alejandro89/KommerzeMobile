@@ -58,5 +58,5 @@ class SalesSyncException implements Exception {
 }
 
 final salesRemoteDataSourceProvider = Provider<SalesRemoteDataSource>(
-  (ref) => SalesRemoteDataSource(ref.read(dioProvider)),
+  (ref) => SalesRemoteDataSource(ref.watch(dioProvider)),
 );

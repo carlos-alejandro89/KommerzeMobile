@@ -58,5 +58,5 @@ class ProfilesApiException implements Exception {
 }
 
 final profilesApiProvider = Provider<ProfilesApi>(
-  (ref) => ProfilesApi(ref.read(dioProvider)),
+  (ref) => ProfilesApi(ref.watch(dioProvider)),
 );

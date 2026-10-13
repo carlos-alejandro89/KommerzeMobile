@@ -53,5 +53,5 @@ class LicenseApiException implements Exception {
 }
 
 final licenseApiProvider = Provider<LicenseApi>((ref) {
-  return LicenseApi(ref.read(dioProvider));
+  return LicenseApi(ref.watch(dioProvider));
 });

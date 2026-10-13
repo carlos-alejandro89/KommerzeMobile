@@ -61,7 +61,7 @@ class InventoryException implements Exception {
 
 final inventoryRepositoryProvider = Provider<InventoryRepository>((ref) {
   return InventoryRepository(
-    ref.read(inventoryApiProvider),
+    ref.watch(inventoryApiProvider),
     ref.read(inventoryLocalDataSourceProvider),
   );
 });

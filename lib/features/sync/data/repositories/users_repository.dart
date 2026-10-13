@@ -34,7 +34,7 @@ class UsersRepository {
 
 final usersRepositoryProvider = Provider<UsersRepository>(
   (ref) => UsersRepository(
-    ref.read(usersApiProvider),
+    ref.watch(usersApiProvider),
     ref.read(usersLocalDataSourceProvider),
   ),
 );

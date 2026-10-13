@@ -59,5 +59,5 @@ class PaymentMethodsApiException implements Exception {
 }
 
 final paymentMethodsApiProvider = Provider<PaymentMethodsApi>(
-  (ref) => PaymentMethodsApi(ref.read(dioProvider)),
+  (ref) => PaymentMethodsApi(ref.watch(dioProvider)),
 );

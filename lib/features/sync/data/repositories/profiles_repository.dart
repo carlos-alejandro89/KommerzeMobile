@@ -40,7 +40,7 @@ class ProfilesRepository {
 
 final profilesRepositoryProvider = Provider<ProfilesRepository>(
   (ref) => ProfilesRepository(
-    ref.read(profilesApiProvider),
+    ref.watch(profilesApiProvider),
     ref.read(profilesLocalDataSourceProvider),
   ),
 );

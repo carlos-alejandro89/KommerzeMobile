@@ -40,7 +40,7 @@ class ClientsSyncRepository {
 
 final clientsSyncRepositoryProvider = Provider<ClientsSyncRepository>(
   (ref) => ClientsSyncRepository(
-    ref.read(clientsApiProvider),
+    ref.watch(clientsApiProvider),
     ref.read(clientsLocalDataSourceProvider),
   ),
 );

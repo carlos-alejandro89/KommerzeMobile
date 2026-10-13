@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kommerze_mobile/core/constants/app_constants.dart';
+import 'package:kommerze_mobile/core/setup/app_setup_controller.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
+class _SplashScreenState extends ConsumerState<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<Offset> _truckSlide;
@@ -35,7 +37,13 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
     _controller.forward().whenComplete(() {
-      if (mounted) context.go(AppConstants.loginScreenRoute);
+      if (!mounted) return;
+      final setup = ref.read(appSetupControllerProvider);
+      context.go(
+        setup.onboardingComplete
+            ? AppConstants.loginScreenRoute
+            : AppConstants.onboardingRoute,
+      );
     });
   }
 

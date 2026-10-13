@@ -40,7 +40,7 @@ class StatusesRepository {
 
 final statusesRepositoryProvider = Provider<StatusesRepository>(
   (ref) => StatusesRepository(
-    ref.read(statusesApiProvider),
+    ref.watch(statusesApiProvider),
     ref.read(statusesLocalDataSourceProvider),
   ),
 );

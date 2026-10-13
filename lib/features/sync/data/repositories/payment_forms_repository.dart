@@ -41,7 +41,7 @@ class PaymentFormsRepository {
 
 final paymentFormsRepositoryProvider = Provider<PaymentFormsRepository>(
   (ref) => PaymentFormsRepository(
-    ref.read(paymentFormsApiProvider),
+    ref.watch(paymentFormsApiProvider),
     ref.read(paymentFormsLocalDataSourceProvider),
   ),
 );

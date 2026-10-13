@@ -4,10 +4,12 @@ class AppConstants {
   static const publicCustomerGuid = '550e8400-e29b-41d4-a716-446655440000';
 
   static const splashScreenRoute = '/splash';
+  static const onboardingRoute = '/onboarding';
   static const loginScreenRoute = '/login';
   static const welcomeScreenRoute = '/welcome';
   static const profileScreenRoute = '/profile';
   static const printerSettingsRoute = '/settings/printer';
+  static const serverSettingsRoute = '/settings/server';
   static const licenseScreenRoute = '/license';
   static const inventoryScreenRoute = '/inventory';
   static const branchOperationScreenRoute = '/branch-operation';

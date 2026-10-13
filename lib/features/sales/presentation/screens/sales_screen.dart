@@ -16,6 +16,7 @@ import 'package:kommerze_mobile/features/sales/presentation/controllers/sales_co
 import 'package:kommerze_mobile/features/sales/presentation/screens/barcode_scanner_screen.dart';
 import 'package:kommerze_mobile/features/sales/presentation/widgets/product_selection_sheet.dart';
 import 'package:kommerze_mobile/features/sales/presentation/widgets/sale_cart_sheet.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 class SalesScreen extends ConsumerStatefulWidget {
   final bool purchaseMode;
@@ -170,7 +171,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                 icon: Icon(
                   _continuousScanner
                       ? Icons.videocam_off_rounded
-                      : Icons.qr_code_scanner_rounded,
+                      : LucideIcons.scanBarcode,
                   color: _continuousScanner
                       ? const Color(0xFF72E1B4)
                       : Colors.white,

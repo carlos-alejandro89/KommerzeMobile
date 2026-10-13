@@ -41,7 +41,7 @@ class PaymentMethodsRepository {
 
 final paymentMethodsRepositoryProvider = Provider<PaymentMethodsRepository>(
   (ref) => PaymentMethodsRepository(
-    ref.read(paymentMethodsApiProvider),
+    ref.watch(paymentMethodsApiProvider),
     ref.read(paymentMethodsLocalDataSourceProvider),
   ),
 );

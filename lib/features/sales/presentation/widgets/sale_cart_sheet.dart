@@ -42,7 +42,7 @@ class SaleCartSheet extends ConsumerWidget {
       expand: false,
       builder: (context, scrollController) => Container(
         decoration: const BoxDecoration(
-          color: Color(0xFFF7F9FD),
+          color: AppColors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(

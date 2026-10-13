@@ -51,7 +51,7 @@ class ClientsApi {
     final request = ClientRequestDto(draft: draft);
     try {
       final response = await dio.post<dynamic>(
-        '/clientes/crear',
+        'clientes/crear',
         data: request.toJson(),
       );
       _validate(response.data, fallback: 'No fue posible crear el cliente.');
@@ -67,7 +67,7 @@ class ClientsApi {
     final request = ClientRequestDto(draft: draft);
     try {
       final response = await dio.patch<dynamic>(
-        '/clientes/editar/$guid',
+        'clientes/editar/$guid',
         data: request.toJson(),
       );
       _validate(
@@ -83,7 +83,7 @@ class ClientsApi {
 
   Future<void> delete(String guid) async {
     try {
-      final response = await dio.delete<dynamic>('/clientes/eliminar/$guid');
+      final response = await dio.delete<dynamic>('clientes/eliminar/$guid');
       _validate(response.data, fallback: 'No fue posible eliminar el cliente.');
     } on DioException catch (error) {
       throw ClientsApiException(
@@ -136,5 +136,5 @@ class ClientsApiException implements Exception {
 }
 
 final clientsApiProvider = Provider<ClientsApi>((ref) {
-  return ClientsApi(ref.read(dioProvider));
+  return ClientsApi(ref.watch(dioProvider));
 });

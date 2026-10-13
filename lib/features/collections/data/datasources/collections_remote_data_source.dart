@@ -113,5 +113,5 @@ class CollectionsSyncException implements Exception {
 
 final collectionsRemoteDataSourceProvider =
     Provider<CollectionsRemoteDataSource>(
-      (ref) => CollectionsRemoteDataSource(ref.read(dioProvider)),
+      (ref) => CollectionsRemoteDataSource(ref.watch(dioProvider)),
     );

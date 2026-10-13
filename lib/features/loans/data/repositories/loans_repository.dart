@@ -105,7 +105,7 @@ class LoansSyncReport {
 final loansRepositoryProvider = Provider<LoansRepository>((ref) {
   return LoansRepository(
     ref.read(loansLocalDataSourceProvider),
-    ref.read(loansRemoteDataSourceProvider),
+    ref.watch(loansRemoteDataSourceProvider),
     ref.read(collectionsRepositoryProvider),
     ref.read(authLocalProvider),
   );

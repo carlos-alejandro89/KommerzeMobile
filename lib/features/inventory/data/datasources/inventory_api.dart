@@ -10,12 +10,12 @@ class InventoryApi {
   const InventoryApi(this.dio);
 
   Future<List<InventoryItem>> getPrices(String branchGuid) async {
-    return _request('/lista-precios/get-precios/$branchGuid', backup: false);
+    return _request('lista-precios/get-precios/$branchGuid', backup: false);
   }
 
   Future<List<InventoryItem>> recoverInventory(String branchGuid) async {
     return _request(
-      '/sucursales/inventario/recuperar/$branchGuid',
+      'sucursales/inventario/recuperar/$branchGuid',
       backup: true,
     );
   }
@@ -26,7 +26,7 @@ class InventoryApi {
   ) async {
     try {
       final response = await dio.post<dynamic>(
-        '/sucursales/inventario/backup/$branchGuid',
+        'sucursales/inventario/backup/$branchGuid',
         data: items.map(InventoryDto.toBackupPayload).toList(growable: false),
       );
       final body = response.data;
@@ -101,5 +101,5 @@ class InventoryApiException implements Exception {
 }
 
 final inventoryApiProvider = Provider<InventoryApi>((ref) {
-  return InventoryApi(ref.read(dioProvider));
+  return InventoryApi(ref.watch(dioProvider));
 });

@@ -121,7 +121,7 @@ class _RegisterCollectionScreenState
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     side: const BorderSide(color: AppColors.primaryBlue),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(13),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                 ),

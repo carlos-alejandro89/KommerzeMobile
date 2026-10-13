@@ -56,5 +56,5 @@ class UsersApiException implements Exception {
 }
 
 final usersApiProvider = Provider<UsersApi>(
-  (ref) => UsersApi(ref.read(dioProvider)),
+  (ref) => UsersApi(ref.watch(dioProvider)),
 );

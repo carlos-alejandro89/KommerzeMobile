@@ -80,7 +80,7 @@ class _InventoryConfirmationSheetState
       padding: EdgeInsets.fromLTRB(12, 12, 12, bottomInset + 12),
       decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 350),
