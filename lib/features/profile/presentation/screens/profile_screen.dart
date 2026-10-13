@@ -12,6 +12,7 @@ import 'package:kommerze_mobile/features/auth/domain/entities/usuario_entity.dar
 import 'package:kommerze_mobile/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:kommerze_mobile/features/profile/presentation/controllers/profile_photo_controller.dart';
 import 'package:kommerze_mobile/features/license/presentation/guards/license_guard.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -159,7 +160,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       items: [
                         _ProfileItem(
                           icon: Icons.devices_other_rounded,
-                          label: 'Tipo de dispositivo',
+                          label: 'Modo de venta',
                           value: deviceType.label,
                           onTap: () => _showDeviceTypeSelector(deviceType),
                         ),
@@ -216,58 +217,68 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<void> _showDeviceTypeSelector(DeviceType current) async {
     final selected = await showModalBottomSheet<DeviceType>(
       context: context,
-      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Tipo de dispositivo',
-                style: TextStyle(
-                  color: AppColors.navy,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * .85,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.borderGrey,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Elige la experiencia que se mostrará al abrir Ventas.',
-                style: TextStyle(color: AppColors.textGrey),
-              ),
-              const SizedBox(height: 18),
-              for (final type in DeviceType.values) ...[
-                ListTile(
-                  onTap: () => Navigator.pop(context, type),
-                  selected: current == type,
-                  selectedTileColor: AppColors.primarySurface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                const SizedBox(height: 18),
+                const Text(
+                  'Modo de venta',
+                  style: TextStyle(
+                    color: AppColors.navy,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
                   ),
-                  leading: Icon(
-                    type == DeviceType.pda
-                        ? Icons.barcode_reader
-                        : Icons.smartphone_rounded,
-                    color: AppColors.primaryBlue,
-                  ),
-                  title: Text(type.label),
-                  subtitle: Text(
-                    type == DeviceType.pda
-                        ? 'Captura rápida mediante lector de códigos.'
-                        : 'Catálogo visual y flujo de venta actual.',
-                  ),
-                  trailing: current == type
-                      ? const Icon(
-                          Icons.check_circle,
-                          color: AppColors.primaryBlue,
-                        )
-                      : null,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
+                const Text(
+                  'Elige la experiencia que se mostrará al abrir Ventas.',
+                  style: TextStyle(color: AppColors.textGrey, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                _SalesModeOption(
+                  title: DeviceType.smartphone.label,
+                  subtitle:
+                      'Explora el catálogo y selecciona los productos en pantalla.',
+                  icon: Icons.smartphone_rounded,
+                  selected: current == DeviceType.smartphone,
+                  onTap: () => Navigator.pop(context, DeviceType.smartphone),
+                ),
+                const SizedBox(height: 10),
+                _SalesModeOption(
+                  title: DeviceType.pda.label,
+                  subtitle:
+                      'Escanea códigos de barras para agregar productos rápidamente.',
+                  icon: LucideIcons.scanBarcode,
+                  selected: current == DeviceType.pda,
+                  onTap: () => Navigator.pop(context, DeviceType.pda),
+                ),
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -275,6 +286,89 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (selected != null) {
       await ref.read(deviceTypeControllerProvider.notifier).save(selected);
     }
+  }
+}
+
+class _SalesModeOption extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SalesModeOption({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.primarySurface : Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? AppColors.primaryBlue : AppColors.borderGrey,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? AppColors.primaryLight
+                      : AppColors.primarySurface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppColors.primaryBlue, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.navy,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: AppColors.textGrey,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+                color: selected ? AppColors.primaryBlue : AppColors.borderGrey,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

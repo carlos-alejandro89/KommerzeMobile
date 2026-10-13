@@ -2,8 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kommerze_mobile/core/storage/shared_prefs_provider.dart';
 
 enum DeviceType {
-  smartphone('Smartphone'),
-  pda('PDA');
+  smartphone('Venta visual'),
+  pda('Venta con lector');
 
   final String label;
   const DeviceType(this.label);

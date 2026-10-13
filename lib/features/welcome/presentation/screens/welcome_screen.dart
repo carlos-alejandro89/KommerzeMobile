@@ -58,6 +58,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   Future<void> _chooseMenuLayout() async {
     final selected = await showModalBottomSheet<_MenuLayout>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _MenuLayoutSheet(selected: _menuLayout),
     );
@@ -697,56 +698,61 @@ class _MenuLayoutSheet extends StatelessWidget {
     return SafeArea(
       child: Container(
         margin: const EdgeInsets.all(12),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .85,
+        ),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.borderGrey,
-                  borderRadius: BorderRadius.circular(4),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.borderGrey,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'Tipo de menú',
-              style: TextStyle(
-                color: AppColors.navy,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
+              const SizedBox(height: 18),
+              const Text(
+                'Tipo de menú',
+                style: TextStyle(
+                  color: AppColors.navy,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Elige cómo deseas visualizar los módulos.',
-              style: TextStyle(color: AppColors.textGrey, fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            _LayoutOption(
-              title: 'Lista compacta',
-              subtitle: 'Más módulos visibles y navegación rápida',
-              icon: Icons.view_agenda_outlined,
-              selected: selected == _MenuLayout.list,
-              onTap: () => Navigator.pop(context, _MenuLayout.list),
-            ),
-            const SizedBox(height: 10),
-            _LayoutOption(
-              title: 'Tarjetas',
-              subtitle: 'Diseño visual con accesos destacados',
-              icon: Icons.grid_view_rounded,
-              selected: selected == _MenuLayout.grid,
-              onTap: () => Navigator.pop(context, _MenuLayout.grid),
-            ),
-          ],
+              const SizedBox(height: 4),
+              const Text(
+                'Elige cómo deseas visualizar los módulos.',
+                style: TextStyle(color: AppColors.textGrey, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              _LayoutOption(
+                title: 'Lista compacta',
+                subtitle: 'Más módulos visibles y navegación rápida',
+                icon: Icons.view_agenda_outlined,
+                selected: selected == _MenuLayout.list,
+                onTap: () => Navigator.pop(context, _MenuLayout.list),
+              ),
+              const SizedBox(height: 10),
+              _LayoutOption(
+                title: 'Tarjetas',
+                subtitle: 'Diseño visual con accesos destacados',
+                icon: Icons.grid_view_rounded,
+                selected: selected == _MenuLayout.grid,
+                onTap: () => Navigator.pop(context, _MenuLayout.grid),
+              ),
+            ],
+          ),
         ),
       ),
     );
