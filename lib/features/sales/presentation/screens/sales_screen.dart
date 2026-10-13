@@ -568,121 +568,159 @@ class _ProductCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.only(bottom: 9),
-    elevation: 0,
-    color: Colors.white,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(15),
-      side: const BorderSide(color: Color(0xFFE7ECF5)),
-    ),
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(15),
-      child: Padding(
-        padding: const EdgeInsets.all(13),
-        child: Row(
-          children: [
-            Container(
-              width: 62,
-              height: 76,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F6FF),
-                borderRadius: BorderRadius.circular(11),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: ProductImage(imagePath: product.imagePath, iconSize: 27),
-              ),
-            ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.displayName,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.navy,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+  Widget build(BuildContext context) {
+    final available = purchaseMode || product.stock > 0;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 9),
+      elevation: 0,
+      color: available ? Colors.white : AppColors.lightBackground,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+        side: const BorderSide(color: Color(0xFFE7ECF5)),
+      ),
+      child: InkWell(
+        onTap: available ? onTap : null,
+        borderRadius: BorderRadius.circular(15),
+        child: Padding(
+          padding: const EdgeInsets.all(13),
+          child: Row(
+            children: [
+              Container(
+                width: 62,
+                height: 76,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F6FF),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Opacity(
+                  opacity: available ? 1 : .45,
+                  child: ColorFiltered(
+                    colorFilter: available
+                        ? const ColorFilter.mode(
+                            Colors.transparent,
+                            BlendMode.dst,
+                          )
+                        : const ColorFilter.mode(
+                            Colors.grey,
+                            BlendMode.saturation,
+                          ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: ProductImage(
+                        imagePath: product.imagePath,
+                        iconSize: 27,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${product.code}${product.barcode.isEmpty ? '' : '  •  ${product.barcode}'}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textGrey,
-                      fontSize: 11.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEAF1FF),
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: Text(
-                      product.packageLevel,
-                      style: const TextStyle(
-                        color: AppColors.navy,
-                        fontSize: 10.5,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.displayName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: available ? AppColors.navy : AppColors.textGrey,
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${product.code}${product.barcode.isEmpty ? '' : '  •  ${product.barcode}'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textGrey,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEAF1FF),
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: Text(
+                        product.packageLevel,
+                        style: const TextStyle(
+                          color: AppColors.navy,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    'Existencia',
+                    style: TextStyle(color: AppColors.textGrey, fontSize: 10.5),
+                  ),
+                  if (available)
+                    Text(
+                      _number(product.stock),
+                      style: const TextStyle(
+                        color: AppColors.navy,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF98A3B3),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Agotado',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 7),
+                  Text(
+                    purchaseMode ? 'Precio compra' : 'Precio',
+                    style: const TextStyle(
+                      color: AppColors.textGrey,
+                      fontSize: 10.5,
+                    ),
+                  ),
+                  Text(
+                    '\$${(purchaseMode ? product.purchasePrice : product.salePrice).toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: AppColors.primaryBlue,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                const Text(
-                  'Existencia',
-                  style: TextStyle(color: AppColors.textGrey, fontSize: 10.5),
-                ),
-                Text(
-                  _number(product.stock),
-                  style: TextStyle(
-                    color: product.stock > 0
-                        ? AppColors.navy
-                        : const Color(0xFFD92D20),
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  purchaseMode ? 'Precio compra' : 'Precio',
-                  style: const TextStyle(
-                    color: AppColors.textGrey,
-                    fontSize: 10.5,
-                  ),
-                ),
-                Text(
-                  '\$${(purchaseMode ? product.purchasePrice : product.salePrice).toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    color: AppColors.primaryBlue,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 String _number(double value) => value == value.roundToDouble()

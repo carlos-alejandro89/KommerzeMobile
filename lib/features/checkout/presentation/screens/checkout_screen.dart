@@ -287,61 +287,32 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         ),
         child: SafeArea(
           top: false,
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed:
-                      !checkout.isSubmitting &&
-                          checkout.client != null &&
-                          total > 0
-                      ? () => _saveSale(context, ref, statusName: 'Pendiente')
-                      : null,
-                  icon: checkout.isSubmitting
-                      ? const SizedBox.square(
-                          dimension: 17,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.schedule_rounded),
-                  label: Text(
-                    checkout.isSubmitting ? 'Guardando...' : 'Pendiente',
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed:
+                  !checkout.isSubmitting && checkout.client != null && covered
+                  ? () => _finish(context, ref)
+                  : null,
+              icon: checkout.isSubmitting
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.check_circle_outline_rounded),
+              label: Text(
+                checkout.isSubmitting
+                    ? 'Generando venta...'
+                    : 'Finalizar venta',
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: FilledButton.icon(
-                  onPressed:
-                      !checkout.isSubmitting &&
-                          checkout.client != null &&
-                          covered
-                      ? () => _finish(context, ref)
-                      : null,
-                  icon: checkout.isSubmitting
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.check_circle_outline_rounded),
-                  label: Text(
-                    checkout.isSubmitting
-                        ? 'Generando venta...'
-                        : 'Finalizar venta',
-                  ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primaryBlue,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.primaryBlue,
+                padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -380,29 +351,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   Future<void> _finish(BuildContext context, WidgetRef ref) async {
-    await _saveSale(context, ref, statusName: 'Confirmado');
+    await _saveSale(context, ref);
   }
 
-  Future<void> _saveSale(
-    BuildContext context,
-    WidgetRef ref, {
-    required String statusName,
-  }) async {
+  Future<void> _saveSale(BuildContext context, WidgetRef ref) async {
     final controller = ref.read(checkoutControllerProvider.notifier);
     if (ref.read(checkoutControllerProvider).isSubmitting) return;
     controller.setSubmitting(true);
     try {
-      await _performSaveSale(context, ref, statusName: statusName);
+      await _performSaveSale(context, ref);
     } finally {
       controller.setSubmitting(false);
     }
   }
 
-  Future<void> _performSaveSale(
-    BuildContext context,
-    WidgetRef ref, {
-    required String statusName,
-  }) async {
+  Future<void> _performSaveSale(BuildContext context, WidgetRef ref) async {
     final checkout = ref.read(checkoutControllerProvider);
     final client = checkout.client;
     final cart = ref.read(saleCartControllerProvider);
@@ -426,7 +389,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   paidAt: payment.createdAt,
                 ),
             ],
-            statusName: statusName,
+            statusName: 'Confirmado',
           );
     } catch (error) {
       if (!context.mounted) return;
@@ -470,7 +433,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
     String? automaticPrintError;
     final printerSettings = ref.read(printerSettingsControllerProvider);
-    if (statusName == 'Confirmado' && printerSettings.printAfterSale) {
+    if (printerSettings.printAfterSale) {
       try {
         await const ThermalPrinterService().printReceipt(
           receipt,
@@ -484,7 +447,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     await _showSaleCompletedDialog(
       context,
       synchronized: synchronized,
-      pending: statusName != 'Confirmado',
       receipt: receipt,
       automaticPrintError: automaticPrintError,
     );
@@ -501,7 +463,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   Future<void> _showSaleCompletedDialog(
     BuildContext context, {
     required bool synchronized,
-    required bool pending,
     required SaleReceipt receipt,
     required String? automaticPrintError,
   }) async {
@@ -533,13 +494,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           }
 
           return AlertDialog(
-            title: Text(
-              synchronized
-                  ? 'Venta sincronizada'
-                  : pending
-                  ? 'Venta pendiente'
-                  : 'Venta guardada',
-            ),
+            title: Text(synchronized ? 'Venta sincronizada' : 'Venta guardada'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,

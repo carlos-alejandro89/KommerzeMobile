@@ -28,9 +28,11 @@ class AppHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final safeTop = MediaQuery.paddingOf(context).top;
+    final effectiveHeight = height < safeTop + 76 ? safeTop + 76 : height;
     return Container(
       width: double.infinity,
-      height: height,
+      height: effectiveHeight,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xFF001B60), Color(0xFF073E9A)],

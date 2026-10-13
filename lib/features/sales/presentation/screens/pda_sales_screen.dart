@@ -25,6 +25,7 @@ class PdaSalesScreen extends ConsumerStatefulWidget {
 class _PdaSalesScreenState extends ConsumerState<PdaSalesScreen> {
   final _search = TextEditingController();
   final _focusNode = FocusNode();
+  final _cartScrollController = ScrollController();
   Future<void> _scanQueue = Future.value();
   String? _lastScannedLevelGuid;
 
@@ -32,6 +33,7 @@ class _PdaSalesScreenState extends ConsumerState<PdaSalesScreen> {
   void dispose() {
     _search.dispose();
     _focusNode.dispose();
+    _cartScrollController.dispose();
     super.dispose();
   }
 
@@ -63,6 +65,30 @@ class _PdaSalesScreenState extends ConsumerState<PdaSalesScreen> {
     }
 
     setState(() => _lastScannedLevelGuid = product.levelGuid);
+    _scrollToProduct(product.levelGuid);
+  }
+
+  void _scrollToProduct(String levelGuid) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_cartScrollController.hasClients) return;
+      final cart = ref.read(saleCartControllerProvider);
+      final index = cart.indexWhere(
+        (item) => item.product.levelGuid == levelGuid,
+      );
+      if (index < 0) return;
+
+      const itemExtent = 169.0;
+      final position = _cartScrollController.position;
+      final target = (index * itemExtent).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      _cartScrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   void _message(String value, {bool error = false}) {
@@ -135,6 +161,7 @@ class _PdaSalesScreenState extends ConsumerState<PdaSalesScreen> {
           .add(product, 1);
       if (added) {
         setState(() => _lastScannedLevelGuid = product.levelGuid);
+        _scrollToProduct(product.levelGuid);
       } else {
         _message(
           'No hay existencia suficiente de ${product.displayName}.',
@@ -158,7 +185,6 @@ class _PdaSalesScreenState extends ConsumerState<PdaSalesScreen> {
           AppHeader(
             title: 'Ventas',
             subtitle: 'Escanea artículos para agregarlos',
-            height: 166,
             showBackButton: true,
             actions: [
               IconButton(
@@ -175,7 +201,10 @@ class _PdaSalesScreenState extends ConsumerState<PdaSalesScreen> {
                 icon: const Icon(Icons.search_rounded, color: Colors.white),
               ),
             ],
-            content: TextField(
+          ),
+          Offstage(
+            offstage: true,
+            child: TextField(
               controller: _search,
               focusNode: _focusNode,
               autofocus: true,
@@ -185,25 +214,14 @@ class _PdaSalesScreenState extends ConsumerState<PdaSalesScreen> {
               showCursor: false,
               textInputAction: TextInputAction.search,
               onSubmitted: _submitBarcode,
-              decoration: InputDecoration(
-                hintText: 'Esperando lectura del código de barras',
-                prefixIcon: const Icon(
-                  LucideIcons.scanBarcode,
-                  color: AppColors.primaryBlue,
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(13),
-                  borderSide: BorderSide.none,
-                ),
-              ),
+              decoration: const InputDecoration.collapsed(hintText: ''),
             ),
           ),
           Expanded(
             child: cart.isEmpty
                 ? const _EmptyPdaSale()
                 : ListView.separated(
+                    controller: _cartScrollController,
                     padding: const EdgeInsets.fromLTRB(14, 14, 14, 120),
                     itemCount: cart.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 8),
@@ -361,22 +379,39 @@ class _ManualProductSearchSheetState
                     separatorBuilder: (_, _) => const SizedBox(height: 8),
                     itemBuilder: (_, index) {
                       final product = _items[index];
+                      final available = product.stock > 0;
                       return ListTile(
-                        onTap: product.stock > 0
+                        onTap: available
                             ? () => Navigator.pop(context, product)
                             : null,
-                        tileColor: Colors.white,
+                        tileColor: available
+                            ? Colors.white
+                            : AppColors.lightBackground,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                           side: const BorderSide(color: AppColors.borderGrey),
                         ),
                         leading: SizedBox.square(
                           dimension: 48,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(9),
-                            child: ProductImage(
-                              imagePath: product.imagePath,
-                              iconSize: 22,
+                          child: Opacity(
+                            opacity: available ? 1 : .45,
+                            child: ColorFiltered(
+                              colorFilter: available
+                                  ? const ColorFilter.mode(
+                                      Colors.transparent,
+                                      BlendMode.dst,
+                                    )
+                                  : const ColorFilter.mode(
+                                      Colors.grey,
+                                      BlendMode.saturation,
+                                    ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(9),
+                                child: ProductImage(
+                                  imagePath: product.imagePath,
+                                  iconSize: 22,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -384,17 +419,51 @@ class _ManualProductSearchSheetState
                           product.displayName,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                          style: TextStyle(
+                            color: available
+                                ? AppColors.navy
+                                : AppColors.textGrey,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                         subtitle: Text(
                           '${product.code}  ·  Existencia ${product.stock.toStringAsFixed(0)}',
                         ),
-                        trailing: Text(
-                          '\$${product.salePrice.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            color: AppColors.primaryBlue,
-                            fontWeight: FontWeight.w800,
-                          ),
+                        trailing: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '\$${product.salePrice.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                color: available
+                                    ? AppColors.primaryBlue
+                                    : AppColors.textGrey,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            if (!available) ...[
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF98A3B3),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Text(
+                                  'Agotado',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       );
                     },
@@ -416,7 +485,7 @@ class _EmptyPdaSale extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(LucideIcons.barcode, size: 62, color: AppColors.textGrey),
+          Icon(LucideIcons.scanBarcode, size: 62, color: AppColors.textGrey),
           SizedBox(height: 14),
           Text(
             'Escanea el primer artículo',
