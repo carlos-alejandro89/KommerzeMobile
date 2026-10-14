@@ -188,7 +188,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
 
   Future<void> _onNavigationSelected(int index) async {
     if (index == 3) {
-      context.push(AppConstants.licenseScreenRoute);
+      context.push(AppConstants.profileScreenRoute);
       return;
     }
     if (index == 1) {

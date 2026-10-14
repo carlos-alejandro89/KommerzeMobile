@@ -3,6 +3,8 @@ class ApiConstants {
 
   static const pulsePath = 'pulse';
   static const loginPath = 'auth/login';
+  static const changePasswordPath = 'auth/password';
+  static const profilePicturePath = 'auth/profile/picture';
   static const licenseActivationPath = 'api/v1/licencias/activacion';
   static const paymentFormsPath = 'catalogos/sat/formas-pago/get';
   static const paymentMethodsPath = 'catalogos/sat/metodos-pago/get';

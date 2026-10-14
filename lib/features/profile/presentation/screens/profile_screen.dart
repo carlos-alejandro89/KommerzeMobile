@@ -10,8 +10,9 @@ import 'package:kommerze_mobile/core/device/device_type_controller.dart';
 import 'package:kommerze_mobile/core/widgets/app_header.dart';
 import 'package:kommerze_mobile/features/auth/domain/entities/usuario_entity.dart';
 import 'package:kommerze_mobile/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:kommerze_mobile/features/license/domain/entities/license_details.dart';
+import 'package:kommerze_mobile/features/license/presentation/controllers/license_activation_controller.dart';
 import 'package:kommerze_mobile/features/profile/presentation/controllers/profile_photo_controller.dart';
-import 'package:kommerze_mobile/features/license/presentation/guards/license_guard.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -22,26 +23,23 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
   static String _displayName(UsuarioEntity? user) {
     final name = user?.name.trim() ?? '';
-    return name.isEmpty ? 'Carlos Alejandro' : name;
+    return name.isEmpty ? 'Usuario' : name;
   }
 
   static String _displayEmail(UsuarioEntity? user) {
     final email = user?.email.trim() ?? '';
-    return email.contains('@') ? email : 'carlos@kommerze.com';
-  }
-
-  static String _displayUsername(UsuarioEntity? user) {
-    final email = _displayEmail(user);
-    return email.split('@').first;
+    return email.isEmpty ? 'Sin correo registrado' : email;
   }
 
   static String _displayProfile(UsuarioEntity? user) {
     final profile = user?.profile.trim() ?? '';
-    return profile.isEmpty ? 'Administrador' : profile;
+    return profile.isEmpty ? 'Sin rol asignado' : profile;
   }
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  int _sectionIndex = 0;
+
   Future<void> _choosePhoto() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.image,
@@ -50,22 +48,37 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
     final bytes = result?.files.single.bytes;
     if (bytes == null) return;
-    await ref.read(profilePhotoControllerProvider.notifier).save(bytes);
+    try {
+      await ref
+          .read(profilePhotoControllerProvider.notifier)
+          .save(bytes, filename: result!.files.single.name);
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage(error.toString(), error: true);
+    }
   }
 
   Future<void> _showPhotoOptions() async {
     final action = await showModalBottomSheet<_PhotoAction>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => _PhotoOptionsSheet(
-        hasPhoto: ref.read(profilePhotoControllerProvider).value != null,
-      ),
+      builder: (context) => const _PhotoOptionsSheet(),
     );
     if (action == _PhotoAction.choose) {
       await _choosePhoto();
-    } else if (action == _PhotoAction.remove) {
-      await ref.read(profilePhotoControllerProvider.notifier).remove();
     }
+  }
+
+  void _showMessage(String message, {bool error = false}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: error ? AppColors.error : AppColors.success,
+        ),
+      );
   }
 
   @override
@@ -73,7 +86,74 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final authentication = ref.watch(authControllerProvider);
     final photoBytes = ref.watch(profilePhotoControllerProvider).value;
     final deviceType = ref.watch(deviceTypeControllerProvider);
+    final licenseDetails = ref.watch(licenseDetailsProvider);
     final user = authentication.value;
+    final sectionChildren = switch (_sectionIndex) {
+      0 => <Widget>[
+        _ProfileSection(
+          title: 'Información personal',
+          items: [
+            _ProfileItem(
+              icon: Icons.person_outline_rounded,
+              label: 'Nombre completo',
+              value: ProfileScreen._displayName(user),
+            ),
+            _ProfileItem(
+              icon: Icons.mail_outline_rounded,
+              label: 'Correo electrónico',
+              value: ProfileScreen._displayEmail(user),
+            ),
+            _ProfileItem(
+              icon: Icons.admin_panel_settings_outlined,
+              label: 'Rol',
+              value: ProfileScreen._displayProfile(user),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        _ProfileSection(
+          title: 'Seguridad',
+          items: [
+            _ProfileItem(
+              icon: Icons.lock_outline_rounded,
+              label: 'Cambiar contraseña',
+              onTap: () => context.push(AppConstants.changePasswordRoute),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        _LogoutCard(
+          isLoading: authentication.isLoading,
+          onTap: () => ref.read(authControllerProvider.notifier).logout(),
+        ),
+      ],
+      1 => <Widget>[_LicenseProfileSection(details: licenseDetails)],
+      _ => <Widget>[
+        _ProfileSection(
+          title: 'Preferencias',
+          items: [
+            _ProfileItem(
+              icon: Icons.devices_other_rounded,
+              label: 'Modo de venta',
+              value: deviceType.label,
+              onTap: () => _showDeviceTypeSelector(deviceType),
+            ),
+            _ProfileItem(
+              icon: Icons.print_outlined,
+              label: 'Miniprinter y recibos',
+              value: 'Configurar',
+              onTap: () => context.push(AppConstants.printerSettingsRoute),
+            ),
+            _ProfileItem(
+              icon: Icons.cloud_outlined,
+              label: 'Servidor',
+              value: 'Configurar',
+              onTap: () => context.push(AppConstants.serverSettingsRoute),
+            ),
+          ],
+        ),
+      ],
+    };
 
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
@@ -81,10 +161,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         children: [
           AppHeader(
             title: 'Mi perfil',
-            height: 292,
+            height: 190 + MediaQuery.paddingOf(context).top,
             showBackButton: true,
             onBack: () => context.go(AppConstants.welcomeScreenRoute),
-            actions: const [_NotificationAction(), SizedBox(width: 8)],
             content: _ProfileSummary(
               user: user,
               photoBytes: photoBytes,
@@ -96,112 +175,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 720),
                 child: ListView(
+                  key: ValueKey(_sectionIndex),
                   padding: const EdgeInsets.fromLTRB(18, 22, 18, 28),
-                  children: [
-                    _ProfileSection(
-                      title: 'Información personal',
-                      items: [
-                        _ProfileItem(
-                          icon: Icons.person_outline_rounded,
-                          label: 'Nombre completo',
-                          value: ProfileScreen._displayName(user),
-                        ),
-                        _ProfileItem(
-                          icon: Icons.mail_outline_rounded,
-                          label: 'Correo electrónico',
-                          value: ProfileScreen._displayEmail(user),
-                        ),
-                        const _ProfileItem(
-                          icon: Icons.phone_outlined,
-                          label: 'Teléfono',
-                          value: '+52 993 123 4567',
-                        ),
-                        _ProfileItem(
-                          icon: Icons.badge_outlined,
-                          label: 'Usuario',
-                          value: ProfileScreen._displayUsername(user),
-                        ),
-                        _ProfileItem(
-                          icon: Icons.admin_panel_settings_outlined,
-                          label: 'Rol',
-                          value: ProfileScreen._displayProfile(user),
-                        ),
-                        const _ProfileItem(
-                          icon: Icons.event_available_outlined,
-                          label: 'Último inicio de sesión',
-                          value: '07/05/2025 08:45 a. m.',
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    const _ProfileSection(
-                      title: 'Seguridad',
-                      items: [
-                        _ProfileItem(
-                          icon: Icons.lock_outline_rounded,
-                          label: 'Cambiar contraseña',
-                        ),
-                        _ProfileItem(
-                          icon: Icons.key_outlined,
-                          label: 'Autenticación de dos factores',
-                          value: 'Activo',
-                          valueColor: Color(0xFF08A957),
-                        ),
-                        _ProfileItem(
-                          icon: Icons.devices_outlined,
-                          label: 'Dispositivos vinculados',
-                          value: '2 dispositivos',
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    _ProfileSection(
-                      title: 'Preferencias',
-                      items: [
-                        _ProfileItem(
-                          icon: Icons.devices_other_rounded,
-                          label: 'Modo de venta',
-                          value: deviceType.label,
-                          onTap: () => _showDeviceTypeSelector(deviceType),
-                        ),
-                        const _ProfileItem(
-                          icon: Icons.palette_outlined,
-                          label: 'Tema de la aplicación',
-                          value: 'Sistema',
-                        ),
-                        const _ProfileItem(
-                          icon: Icons.language_rounded,
-                          label: 'Idioma',
-                          value: 'Español',
-                        ),
-                        const _ProfileItem(
-                          icon: Icons.notifications_none_rounded,
-                          label: 'Notificaciones',
-                          value: 'Activadas',
-                        ),
-                        _ProfileItem(
-                          icon: Icons.print_outlined,
-                          label: 'Miniprinter y recibos',
-                          value: 'Configurar',
-                          onTap: () =>
-                              context.push(AppConstants.printerSettingsRoute),
-                        ),
-                        _ProfileItem(
-                          icon: Icons.cloud_outlined,
-                          label: 'Servidor',
-                          value: 'Configurar',
-                          onTap: () =>
-                              context.push(AppConstants.serverSettingsRoute),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    _LogoutCard(
-                      isLoading: authentication.isLoading,
-                      onTap: () =>
-                          ref.read(authControllerProvider.notifier).logout(),
-                    ),
-                  ],
+                  children: sectionChildren,
                 ),
               ),
             ),
@@ -209,7 +185,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ],
       ),
       bottomNavigationBar: _ProfileBottomNavigation(
-        onProtectedTap: () => LicenseGuard.ensureActive(context, ref),
+        selectedIndex: _sectionIndex,
+        onSelected: (index) => setState(() => _sectionIndex = index),
       ),
     );
   }
@@ -372,54 +349,10 @@ class _SalesModeOption extends StatelessWidget {
   }
 }
 
-class _NotificationAction extends StatelessWidget {
-  const _NotificationAction();
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        IconButton(
-          onPressed: () {},
-          icon: const Icon(
-            Icons.notifications_none_rounded,
-            color: Colors.white,
-            size: 27,
-          ),
-        ),
-        Positioned(
-          right: 1,
-          top: 0,
-          child: Container(
-            width: 20,
-            height: 20,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: Color(0xFFFF3B30),
-              shape: BoxShape.circle,
-            ),
-            child: const Text(
-              '3',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-enum _PhotoAction { choose, remove }
+enum _PhotoAction { choose }
 
 class _PhotoOptionsSheet extends StatelessWidget {
-  final bool hasPhoto;
-
-  const _PhotoOptionsSheet({required this.hasPhoto});
+  const _PhotoOptionsSheet();
 
   @override
   Widget build(BuildContext context) {
@@ -474,26 +407,6 @@ class _PhotoOptionsSheet extends StatelessWidget {
               ),
               onTap: () => Navigator.pop(context, _PhotoAction.choose),
             ),
-            if (hasPhoto)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const CircleAvatar(
-                  backgroundColor: Color(0xFFFFE9E7),
-                  child: Icon(
-                    Icons.delete_outline_rounded,
-                    color: AppColors.error,
-                  ),
-                ),
-                title: const Text(
-                  'Eliminar fotografía',
-                  style: TextStyle(
-                    color: AppColors.error,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                onTap: () => Navigator.pop(context, _PhotoAction.remove),
-              ),
           ],
         ),
       ),
@@ -591,11 +504,6 @@ class _ProfileSummary extends StatelessWidget {
                 icon: Icons.mail_outline_rounded,
                 value: ProfileScreen._displayEmail(user),
               ),
-              const SizedBox(height: 8),
-              const _SummaryLine(
-                icon: Icons.phone_outlined,
-                value: '+52 993 123 4567',
-              ),
             ],
           ),
         ),
@@ -626,6 +534,156 @@ class _SummaryLine extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _LicenseProfileSection extends StatelessWidget {
+  final AsyncValue<LicenseDetails?> details;
+
+  const _LicenseProfileSection({required this.details});
+
+  @override
+  Widget build(BuildContext context) {
+    return details.when(
+      loading: () => const _ProfileSection(
+        title: 'Licencia y sucursal',
+        items: [
+          _ProfileItem(
+            icon: Icons.hourglass_top_rounded,
+            label: 'Consultando licencia',
+          ),
+        ],
+      ),
+      error: (_, _) => _ProfileSection(
+        title: 'Licencia y sucursal',
+        items: [
+          _ProfileItem(
+            icon: Icons.error_outline_rounded,
+            label: 'No fue posible consultar la licencia',
+            value: 'Reintentar',
+            onTap: () => context.push(AppConstants.licenseScreenRoute),
+          ),
+        ],
+      ),
+      data: (details) {
+        if (details == null) {
+          return _ProfileSection(
+            title: 'Licencia y sucursal',
+            items: [
+              _ProfileItem(
+                icon: Icons.workspace_premium_outlined,
+                label: 'Configurar licencia',
+                value: 'Pendiente',
+                onTap: () => context.push(AppConstants.licenseScreenRoute),
+              ),
+            ],
+          );
+        }
+        final license = details.license;
+        final branch = details.branch;
+        return _ProfileSection(
+          title: 'Licencia y sucursal',
+          items: [
+            _ProfileItem(
+              icon: Icons.verified_rounded,
+              label: 'Estado de licencia',
+              value: license.isExpired ? 'Expirada' : 'Activa',
+              valueColor: license.isExpired
+                  ? AppColors.error
+                  : AppColors.success,
+            ),
+            _ProfileItem(
+              icon: Icons.devices_outlined,
+              label: 'Dispositivo',
+              value: license.deviceName,
+            ),
+            _ProfileItem(
+              icon: Icons.memory_rounded,
+              label: 'ID del dispositivo',
+              value: license.machineId,
+            ),
+            _ProfileItem(
+              icon: Icons.key_outlined,
+              label: 'Clave',
+              value: license.licenseKeyHint,
+            ),
+            if (license.validityMonths != null)
+              _ProfileItem(
+                icon: Icons.timelapse_rounded,
+                label: 'Vigencia',
+                value: '${license.validityMonths} meses',
+              ),
+            if (license.expiresAt != null)
+              _ProfileItem(
+                icon: Icons.event_outlined,
+                label: 'Expiración',
+                value: _date(license.expiresAt!),
+              ),
+            _ProfileItem(
+              icon: Icons.event_available_outlined,
+              label: 'Activación',
+              value: _date(license.activatedAt),
+            ),
+            if (license.appVersion.isNotEmpty)
+              _ProfileItem(
+                icon: Icons.info_outline_rounded,
+                label: 'Versión de la app',
+                value: license.appVersion,
+              ),
+            _ProfileItem(
+              icon: Icons.storefront_outlined,
+              label: 'Sucursal',
+              value: branch.name,
+            ),
+            if (branch.code.isNotEmpty)
+              _ProfileItem(
+                icon: Icons.tag_rounded,
+                label: 'Clave de sucursal',
+                value: branch.code,
+              ),
+            if (branch.address.isNotEmpty)
+              _ProfileItem(
+                icon: Icons.location_on_outlined,
+                label: 'Dirección',
+                value: branch.address,
+              ),
+            if (branch.city.isNotEmpty || branch.state.isNotEmpty)
+              _ProfileItem(
+                icon: Icons.map_outlined,
+                label: 'Ubicación',
+                value: [
+                  branch.city,
+                  branch.state,
+                ].where((value) => value.isNotEmpty).join(', '),
+              ),
+            if (branch.phone.isNotEmpty)
+              _ProfileItem(
+                icon: Icons.phone_outlined,
+                label: 'Teléfono de sucursal',
+                value: branch.phone,
+              ),
+            if (branch.email.isNotEmpty)
+              _ProfileItem(
+                icon: Icons.alternate_email_rounded,
+                label: 'Correo de sucursal',
+                value: branch.email,
+              ),
+            if (branch.cfdiSeries.isNotEmpty)
+              _ProfileItem(
+                icon: Icons.receipt_long_outlined,
+                label: 'Serie CFDI',
+                value: branch.cfdiSeries,
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  static String _date(DateTime value) {
+    final date = value.toLocal();
+    String two(int number) => number.toString().padLeft(2, '0');
+    return '${two(date.day)}/${two(date.month)}/${date.year}';
   }
 }
 
@@ -825,14 +883,18 @@ class _LogoutCard extends StatelessWidget {
 }
 
 class _ProfileBottomNavigation extends StatelessWidget {
-  final VoidCallback onProtectedTap;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
 
-  const _ProfileBottomNavigation({required this.onProtectedTap});
+  const _ProfileBottomNavigation({
+    required this.selectedIndex,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
     return BottomAppBar(
-      height: 82,
+      height: 64,
       padding: EdgeInsets.zero,
       color: Colors.white,
       surfaceTintColor: Colors.transparent,
@@ -840,25 +902,22 @@ class _ProfileBottomNavigation extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _ProfileNavItem(
-            label: 'Inicio',
-            icon: Icons.home_rounded,
-            onTap: () => context.go(AppConstants.welcomeScreenRoute),
+            label: 'Cuenta',
+            icon: Icons.person_rounded,
+            selected: selectedIndex == 0,
+            onTap: () => onSelected(0),
           ),
           _ProfileNavItem(
-            label: 'Ventas',
-            icon: Icons.shopping_cart_rounded,
-            onTap: onProtectedTap,
+            label: 'Licencia',
+            icon: Icons.workspace_premium_rounded,
+            selected: selectedIndex == 1,
+            onTap: () => onSelected(1),
           ),
           _ProfileNavItem(
-            label: 'Reportes',
-            icon: Icons.bar_chart_rounded,
-            onTap: onProtectedTap,
-          ),
-          _ProfileNavItem(
-            label: 'Más',
-            icon: Icons.grid_view_rounded,
-            selected: true,
-            onTap: () => context.push(AppConstants.licenseScreenRoute),
+            label: 'Preferencias',
+            icon: Icons.tune_rounded,
+            selected: selectedIndex == 2,
+            onTap: () => onSelected(2),
           ),
         ],
       ),

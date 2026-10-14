@@ -1,4 +1,5 @@
-// TODO: Implementar repositorio de autenticación (orquesta API + Local).
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kommerze_mobile/features/auth/data/datasources/auth_api.dart';
 import 'package:kommerze_mobile/features/auth/data/datasources/auth_local.dart';
@@ -44,6 +45,21 @@ class AuthRepository {
     }
     return userEntity.copyWith(accessToken: token);
   }
+
+  Future<String> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) => api.changePassword(
+    currentPassword: currentPassword,
+    newPassword: newPassword,
+  );
+
+  Future<Uint8List?> getProfilePicture() => api.getProfilePicture();
+
+  Future<Uint8List> updateProfilePicture(
+    Uint8List bytes, {
+    required String filename,
+  }) => api.updateProfilePicture(bytes, filename: filename);
 }
 
 // Provider

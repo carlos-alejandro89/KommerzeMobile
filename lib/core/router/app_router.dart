@@ -8,6 +8,7 @@ import 'package:kommerze_mobile/features/onboarding/presentation/screens/setup_o
 import 'package:kommerze_mobile/features/onboarding/presentation/screens/server_settings_screen.dart';
 import 'package:kommerze_mobile/features/auth/presentation/screens/login_screen.dart';
 import 'package:kommerze_mobile/features/profile/presentation/screens/profile_screen.dart';
+import 'package:kommerze_mobile/features/profile/presentation/screens/change_password_screen.dart';
 import 'package:kommerze_mobile/features/printer/presentation/screens/printer_settings_screen.dart';
 import 'package:kommerze_mobile/features/license/presentation/screens/license_screen.dart';
 import 'package:kommerze_mobile/features/inventory/presentation/screens/inventory_screen.dart';
@@ -106,6 +107,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppConstants.profileScreenRoute,
         builder: (_, _) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: AppConstants.changePasswordRoute,
+        builder: (_, _) => const ChangePasswordScreen(),
       ),
       GoRoute(
         path: AppConstants.printerSettingsRoute,

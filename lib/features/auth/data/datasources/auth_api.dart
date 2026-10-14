@@ -1,7 +1,10 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kommerze_mobile/core/constants/api_constants.dart';
 import 'package:kommerze_mobile/core/network/dio_provider.dart';
+import 'package:kommerze_mobile/core/network/url_builder.dart';
 
 class AuthApi {
   final Dio dio;
@@ -48,6 +51,101 @@ class AuthApi {
       }
       throw const AuthApiException('No fue posible iniciar sesión.');
     }
+  }
+
+  Future<String> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await dio.put<Map<String, dynamic>>(
+        ApiConstants.changePasswordPath,
+        data: {'currentPassword': currentPassword, 'newPassword': newPassword},
+      );
+      final body = response.data;
+      if (body == null || body['success'] != true) {
+        throw AuthApiException(
+          body?['mensaje']?.toString() ??
+              'No fue posible actualizar la contraseña.',
+        );
+      }
+      return body['mensaje']?.toString() ??
+          'Contraseña actualizada correctamente.';
+    } on AuthApiException {
+      rethrow;
+    } on DioException catch (error) {
+      throw AuthApiException(_errorMessage(error));
+    }
+  }
+
+  Future<Uint8List?> getProfilePicture() async {
+    try {
+      final response = await dio.get<Map<String, dynamic>>(
+        ApiConstants.profilePicturePath,
+      );
+      final body = response.data;
+      final data = body?['data'];
+      final path = data is Map ? data['url']?.toString().trim() ?? '' : '';
+      if (body?['success'] != true || path.isEmpty) return null;
+      final url = UrlBuilder.join(dio.options.baseUrl, path);
+      final imageResponse = await dio.get<List<int>>(
+        url,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final bytes = imageResponse.data;
+      return bytes == null || bytes.isEmpty ? null : Uint8List.fromList(bytes);
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 404) return null;
+      throw AuthApiException(_errorMessage(error));
+    }
+  }
+
+  Future<Uint8List> updateProfilePicture(
+    Uint8List bytes, {
+    required String filename,
+  }) async {
+    try {
+      final response = await dio.put<Map<String, dynamic>>(
+        ApiConstants.profilePicturePath,
+        data: FormData.fromMap({
+          'image': MultipartFile.fromBytes(
+            bytes,
+            filename: filename,
+            contentType: DioMediaType.parse(_imageContentType(filename)),
+          ),
+        }),
+      );
+      final body = response.data;
+      if (body == null || body['success'] != true) {
+        throw AuthApiException(
+          body?['mensaje']?.toString() ??
+              'No fue posible actualizar la imagen de perfil.',
+        );
+      }
+      return bytes;
+    } on AuthApiException {
+      rethrow;
+    } on DioException catch (error) {
+      throw AuthApiException(_errorMessage(error));
+    }
+  }
+
+  static String _errorMessage(DioException error) {
+    final data = error.response?.data;
+    if (data is Map) {
+      final message = data['mensaje'] ?? data['message'];
+      if (message != null && message.toString().isNotEmpty) {
+        return message.toString();
+      }
+    }
+    return 'No fue posible completar la solicitud.';
+  }
+
+  static String _imageContentType(String filename) {
+    final lower = filename.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    return 'image/jpeg';
   }
 }
 

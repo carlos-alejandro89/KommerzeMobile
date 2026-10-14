@@ -26,6 +26,24 @@ class SaleOrderDetail {
   });
 }
 
+class SaleOrderPayment {
+  final String paymentFormGuid;
+  final DateTime date;
+  final double amount;
+  final double amountReceived;
+  final double change;
+  final double balance;
+
+  const SaleOrderPayment({
+    required this.paymentFormGuid,
+    required this.date,
+    required this.amount,
+    required this.amountReceived,
+    required this.change,
+    required this.balance,
+  });
+}
+
 class SaleOrder {
   final String branchOriginGuid;
   final String orderGuid;
@@ -38,6 +56,7 @@ class SaleOrder {
   final bool sync;
   final bool sent;
   final List<SaleOrderDetail> details;
+  final List<SaleOrderPayment> payments;
 
   const SaleOrder({
     required this.branchOriginGuid,
@@ -51,5 +70,6 @@ class SaleOrder {
     required this.sync,
     required this.sent,
     required this.details,
+    this.payments = const [],
   });
 }

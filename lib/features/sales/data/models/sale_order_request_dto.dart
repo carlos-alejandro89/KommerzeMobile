@@ -14,6 +14,8 @@ class SaleOrderRequestDto {
     'fecha': order.date.toUtc().toIso8601String(),
     'esCredito': order.isCredit,
     'sync': order.sync,
+    'comentarios': '',
+    'codigoFacturacion': '',
     'pedidoDetalle': [
       for (final detail in order.details)
         {
@@ -28,6 +30,18 @@ class SaleOrderRequestDto {
           'retencionISR': detail.incomeTaxWithholding,
           'tasaISR': detail.incomeTaxRate,
           'infoAdicional': detail.additionalInfo,
+        },
+    ],
+    'pagos': [
+      for (final payment in order.payments)
+        {
+          'pedidoGuid': order.orderGuid,
+          'formaPagoGuid': payment.paymentFormGuid,
+          'fecha': payment.date.toUtc().toIso8601String(),
+          'monto': payment.amount,
+          'montoRecibido': payment.amountReceived,
+          'cambio': payment.change,
+          'saldo': payment.balance,
         },
     ],
   };

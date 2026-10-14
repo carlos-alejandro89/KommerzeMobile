@@ -387,6 +387,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   amount: payment.amount,
                   isCredit: payment.method == PaymentMethod.credit,
                   paidAt: payment.createdAt,
+                  amountReceived: payment.amount,
                 ),
             ],
             statusName: 'Confirmado',

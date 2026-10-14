@@ -159,6 +159,7 @@ class SalesLocalDataSource {
         payments.where((payment) => !payment.isCredit).toList(growable: false),
         saleTotal,
       );
+      final orderPayments = <SaleOrderPayment>[];
       for (final payment in actualPayments) {
         final paymentFormGuid = await _singleGuid(
           transaction,
@@ -174,8 +175,21 @@ class SalesLocalDataSource {
           'pedido_guid': orderGuid,
           'fecha_pago': payment.paidAt.toUtc().toIso8601String(),
           'monto': payment.amount,
+          'monto_recibido': payment.amountReceived,
+          'cambio': payment.change,
+          'saldo': payment.balance,
           'es_credito': 0,
         });
+        orderPayments.add(
+          SaleOrderPayment(
+            paymentFormGuid: paymentFormGuid,
+            date: payment.paidAt,
+            amount: payment.amount,
+            amountReceived: payment.amountReceived,
+            change: payment.change,
+            balance: payment.balance,
+          ),
+        );
       }
 
       final amountPaid = actualPayments.fold<double>(
@@ -245,6 +259,7 @@ class SalesLocalDataSource {
         sync: true,
         sent: false,
         details: details,
+        payments: orderPayments,
       );
     });
   }
@@ -265,6 +280,12 @@ class SalesLocalDataSource {
         where: 'pedido_guid = ?',
         whereArgs: [orderGuid],
         orderBy: 'id ASC',
+      );
+      final paymentRows = await db.query(
+        'pagos_venta',
+        where: 'pedido_guid = ?',
+        whereArgs: [orderGuid],
+        orderBy: 'fecha_pago ASC',
       );
       result.add(
         SaleOrder(
@@ -292,6 +313,22 @@ class SalesLocalDataSource {
                   incomeTaxWithholding: _decimal(detail['retencion_isr']),
                   incomeTaxRate: _decimal(detail['tasa_isr']),
                   additionalInfo: detail['info_adicional']?.toString() ?? '',
+                ),
+              )
+              .toList(growable: false),
+          payments: paymentRows
+              .map(
+                (payment) => SaleOrderPayment(
+                  paymentFormGuid: payment['forma_pago_guid']?.toString() ?? '',
+                  date:
+                      DateTime.tryParse(
+                        payment['fecha_pago']?.toString() ?? '',
+                      ) ??
+                      DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+                  amount: _decimal(payment['monto']),
+                  amountReceived: _decimal(payment['monto_recibido']),
+                  change: _decimal(payment['cambio']),
+                  balance: _decimal(payment['saldo']),
                 ),
               )
               .toList(growable: false),

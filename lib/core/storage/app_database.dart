@@ -319,6 +319,9 @@ class AppDatabase {
         pedido_guid TEXT NOT NULL,
         fecha_pago TEXT NOT NULL,
         monto REAL NOT NULL,
+        monto_recibido REAL NOT NULL DEFAULT 0,
+        cambio REAL NOT NULL DEFAULT 0,
+        saldo REAL NOT NULL DEFAULT 0,
         es_credito INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (pedido_guid) REFERENCES pedidos(pedido_guid)
           ON DELETE CASCADE
@@ -336,8 +339,30 @@ class AppDatabase {
   }
 
   Future<void> _ensureCurrentSchema(Database database) async {
+    await _ensureSalePaymentColumns(database);
     await _createCollectionsTables(database);
     await _createLoansTables(database);
+  }
+
+  Future<void> _ensureSalePaymentColumns(DatabaseExecutor database) async {
+    final columns = await database.rawQuery('PRAGMA table_info(pagos_venta)');
+    final names = columns.map((row) => row['name']?.toString()).toSet();
+    for (final definition in const {
+      'monto_recibido': 'REAL NOT NULL DEFAULT 0',
+      'cambio': 'REAL NOT NULL DEFAULT 0',
+      'saldo': 'REAL NOT NULL DEFAULT 0',
+    }.entries) {
+      if (!names.contains(definition.key)) {
+        await database.execute(
+          'ALTER TABLE pagos_venta ADD COLUMN ${definition.key} ${definition.value}',
+        );
+      }
+    }
+    await database.rawUpdate('''
+      UPDATE pagos_venta
+      SET monto_recibido = monto
+      WHERE monto_recibido = 0 AND monto > 0
+    ''');
   }
 
   Future<void> _createCollectionsTables(DatabaseExecutor database) async {
