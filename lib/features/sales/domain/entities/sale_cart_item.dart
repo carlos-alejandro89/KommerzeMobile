@@ -15,8 +15,12 @@ class SaleCartItem {
   double get discount => subtotal * product.discountPercentage / 100;
   double get total => subtotal - discount;
 
-  SaleCartItem copyWith({double? quantity, double? unitPrice}) => SaleCartItem(
-    product: product,
+  SaleCartItem copyWith({
+    InventoryItem? product,
+    double? quantity,
+    double? unitPrice,
+  }) => SaleCartItem(
+    product: product ?? this.product,
     quantity: quantity ?? this.quantity,
     unitPrice: unitPrice ?? this.unitPrice,
   );

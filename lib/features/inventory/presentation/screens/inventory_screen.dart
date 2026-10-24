@@ -10,6 +10,7 @@ import 'package:kommerze_mobile/features/inventory/presentation/controllers/inve
 import 'package:kommerze_mobile/features/inventory/presentation/widgets/inventory_confirmation_sheet.dart';
 import 'package:kommerze_mobile/features/license/presentation/controllers/license_activation_controller.dart';
 import 'package:kommerze_mobile/features/printer/presentation/controllers/printer_settings_controller.dart';
+import 'package:kommerze_mobile/core/inventory/inventory_source_controller.dart';
 
 enum _StockFilter { inStock, low, empty }
 
@@ -55,6 +56,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final items = inventory.value ?? const <InventoryItem>[];
     final filteredItems = _filterItems(items);
     final visibleItems = filteredItems.take(_visibleLimit).toList();
+    final cloudInventory =
+        ref.watch(inventorySourceControllerProvider) == InventorySource.cloud;
 
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
@@ -72,28 +75,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 enabled: !inventory.isLoading,
                 icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
                 onSelected: _runAction,
-                itemBuilder: (_) => const [
-                  PopupMenuItem(
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
                     value: _InventoryAction.syncPrices,
                     child: _ActionLabel(
                       icon: Icons.sync_rounded,
                       text: 'Sincronizar precios',
                     ),
                   ),
-                  PopupMenuItem(
-                    value: _InventoryAction.recoverInventory,
-                    child: _ActionLabel(
-                      icon: Icons.cloud_download_outlined,
-                      text: 'Recuperar inventario',
+                  if (!cloudInventory) ...const [
+                    PopupMenuItem(
+                      value: _InventoryAction.recoverInventory,
+                      child: _ActionLabel(
+                        icon: Icons.cloud_download_outlined,
+                        text: 'Recuperar inventario',
+                      ),
                     ),
-                  ),
-                  PopupMenuItem(
-                    value: _InventoryAction.backupInventory,
-                    child: _ActionLabel(
-                      icon: Icons.cloud_upload_outlined,
-                      text: 'Respaldar inventario',
+                    PopupMenuItem(
+                      value: _InventoryAction.backupInventory,
+                      child: _ActionLabel(
+                        icon: Icons.cloud_upload_outlined,
+                        text: 'Respaldar inventario',
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ],

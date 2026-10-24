@@ -61,6 +61,7 @@ class LicenseActivationResponseDto {
       cfdiSeries: _string(branchJson['serieCfdi']),
       salesCommission: _decimal(branchJson['comisionVentas']),
       inventoryValue: _decimal(branchJson['valorInventario']),
+      cloudInventory: branchJson['inventarioCloud'] == true,
       guid: _string(branchJson['guid']),
       license: license,
     );

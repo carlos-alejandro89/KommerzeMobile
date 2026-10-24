@@ -61,6 +61,24 @@ class BranchOperationLocalDataSource {
     return (rows.first['id'] as num).toInt();
   }
 
+  Future<String> getBranchGuid(int branchId) async {
+    final db = await database.instance;
+    final rows = await db.query(
+      'sucursales',
+      columns: ['guid'],
+      where: 'id = ?',
+      whereArgs: [branchId],
+      limit: 1,
+    );
+    final guid = rows.isEmpty ? '' : rows.first['guid']?.toString() ?? '';
+    if (guid.isEmpty) {
+      throw const BranchOperationException(
+        'No fue posible identificar la sucursal activa.',
+      );
+    }
+    return guid;
+  }
+
   Future<BranchOperation> open({
     required int userId,
     required String userGuid,
@@ -96,34 +114,67 @@ class BranchOperationLocalDataSource {
     return BranchOperation.fromMap(rows.first);
   }
 
-  Future<void> close({
-    required String operationGuid,
-    required int userId,
-  }) async {
+  Future<BranchOperation> closingSnapshot(String operationGuid) async {
     final db = await database.instance;
-    final now = DateTime.now().toUtc().toIso8601String();
-    final operations = await db.query(
+    final rows = await db.query(
       'operaciones_sucursal',
       where: 'guid = ? AND fecha_fin IS NULL',
       whereArgs: [operationGuid],
       limit: 1,
     );
-    if (operations.isEmpty) return;
-    final operation = operations.first;
+    if (rows.isEmpty) {
+      throw const BranchOperationException(
+        'No existe una jornada activa para cerrar.',
+      );
+    }
+    final operation = rows.first;
+    final endDate = DateTime.now().toUtc();
     final financials = await _financialSummary(
       db,
       branchId: (operation['sucursal_id'] as num).toInt(),
       start: DateTime.parse(operation['fecha_inicio'].toString()),
-      end: DateTime.parse(now),
+      end: endDate,
     );
+    return BranchOperation.fromMap({
+      ...operation,
+      ...financials,
+      'fecha_fin': endDate.toIso8601String(),
+      'valor_final_inventario': await getInventoryValue(),
+    });
+  }
+
+  Future<void> close({
+    required String operationGuid,
+    required int userId,
+    required BranchOperation snapshot,
+  }) async {
+    final db = await database.instance;
+    final now = snapshot.endDate!.toUtc().toIso8601String();
     await db.update(
       'operaciones_sucursal',
       {
         'usuario_cierre_id': userId,
         'estatus_id': closedStatus,
         'fecha_fin': now,
-        'valor_final_inventario': await getInventoryValue(),
-        ...financials,
+        'valor_final_inventario': snapshot.finalInventoryValue,
+        'valor_compras': snapshot.purchasesValue,
+        'valor_ventas': snapshot.salesValue,
+        'descuentos_aplicados': snapshot.appliedDiscounts,
+        'ajuste_inventario': snapshot.inventoryAdjustment,
+        'ingreso_efectivo': snapshot.cashIncome,
+        'ingreso_tarjetas': snapshot.cardIncome,
+        'ingreso_cheques': snapshot.checkIncome,
+        'ingreso_transferencia': snapshot.transferIncome,
+        'ingreso_otros': snapshot.otherIncome,
+        'creditos': snapshot.credits,
+        'vales_salida': snapshot.outgoingVouchers,
+        'vales_entrantes': snapshot.incomingVouchers,
+        'cfdi_efectivo': snapshot.cashCfdi,
+        'cfdi_tarjetas': snapshot.cardCfdi,
+        'cfdi_cheques': snapshot.checkCfdi,
+        'cfdi_transferencia': snapshot.transferCfdi,
+        'cfdi_otros': snapshot.otherCfdi,
+        'bajas_mercancia': snapshot.merchandiseLosses,
         'updated_at': now,
       },
       where: 'guid = ? AND fecha_fin IS NULL',

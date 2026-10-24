@@ -106,7 +106,10 @@ class SaleCartController extends Notifier<List<SaleCartItem>> {
     final totalQuantity = state[index].quantity + quantity;
     if (totalQuantity > product.stock) return false;
     final updated = [...state];
-    updated[index] = updated[index].copyWith(quantity: totalQuantity);
+    updated[index] = updated[index].copyWith(
+      product: product,
+      quantity: totalQuantity,
+    );
     state = updated;
     return true;
   }

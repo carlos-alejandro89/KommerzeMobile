@@ -200,6 +200,7 @@ class SalesHistoryLocalDataSource {
   }
 
   Future<void> cancelSale(String orderGuid) async {
+    const cancelledStatusGuid = '86968037-975a-43ce-880c-043003010103';
     final db = await database.instance;
     await db.transaction((transaction) async {
       final orders = await transaction.rawQuery(
@@ -245,7 +246,8 @@ class SalesHistoryLocalDataSource {
       final statuses = await transaction.query(
         'estatus',
         columns: const ['guid'],
-        where: "LOWER(nombre) = 'cancelado' AND deleted_at IS NULL",
+        where: 'guid = ? AND deleted_at IS NULL',
+        whereArgs: const [cancelledStatusGuid],
         limit: 1,
       );
       if (statuses.isEmpty) {

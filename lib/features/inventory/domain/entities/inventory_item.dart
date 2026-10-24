@@ -36,6 +36,23 @@ class InventoryItem {
     return value == null || value.isEmpty ? code : value;
   }
 
+  InventoryItem copyWith({double? stock}) => InventoryItem(
+    code: code,
+    description: description,
+    packageLevel: packageLevel,
+    barcode: barcode,
+    imagePath: imagePath,
+    purchasePrice: purchasePrice,
+    salePrice: salePrice,
+    discountPercentage: discountPercentage,
+    stock: stock ?? this.stock,
+    lineName: lineName,
+    brandName: brandName,
+    levelGuid: levelGuid,
+    productGuid: productGuid,
+    packageGuid: packageGuid,
+  );
+
   factory InventoryItem.fromMap(Map<String, Object?> map) {
     return InventoryItem(
       code: map['codigo']?.toString() ?? '',

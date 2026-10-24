@@ -78,6 +78,7 @@ class LicenseLocalDataSource {
           'serie_cfdi': branch.cfdiSeries,
           'comision_ventas': branch.salesCommission,
           'valor_inventario': branch.inventoryValue,
+          'inventario_cloud': branch.cloudInventory ? 1 : 0,
           'guid': branch.guid,
           'signature': signature,
           'updated_at': now,

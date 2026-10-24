@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
 import 'package:kommerze_mobile/core/constants/app_constants.dart';
 import 'package:kommerze_mobile/core/device/device_type_controller.dart';
+import 'package:kommerze_mobile/core/inventory/inventory_source_controller.dart';
 import 'package:kommerze_mobile/core/widgets/app_header.dart';
 import 'package:kommerze_mobile/features/auth/domain/entities/usuario_entity.dart';
 import 'package:kommerze_mobile/features/auth/presentation/controllers/auth_controller.dart';
@@ -86,6 +87,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final authentication = ref.watch(authControllerProvider);
     final photoBytes = ref.watch(profilePhotoControllerProvider).value;
     final deviceType = ref.watch(deviceTypeControllerProvider);
+    final inventorySource = ref.watch(inventorySourceControllerProvider);
     final licenseDetails = ref.watch(licenseDetailsProvider);
     final user = authentication.value;
     final sectionChildren = switch (_sectionIndex) {
@@ -137,6 +139,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               label: 'Modo de venta',
               value: deviceType.label,
               onTap: () => _showDeviceTypeSelector(deviceType),
+            ),
+            _ProfileItem(
+              icon: Icons.inventory_2_outlined,
+              label: 'Fuente de inventario',
+              value: inventorySource.label,
             ),
             _ProfileItem(
               icon: Icons.print_outlined,
@@ -264,6 +271,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       await ref.read(deviceTypeControllerProvider.notifier).save(selected);
     }
   }
+
 }
 
 class _SalesModeOption extends StatelessWidget {

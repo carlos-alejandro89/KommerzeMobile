@@ -20,6 +20,7 @@ class SalesLocalDataSource {
     required List<SalePaymentDraft> payments,
     required String statusName,
     String orderTypeName = 'Venta',
+    bool enforceLocalStock = true,
   }) async {
     if (items.isEmpty) {
       throw const SalesLocalException('La venta no contiene artículos.');
@@ -134,14 +135,28 @@ class SalesLocalDataSource {
       await batch.commit(noResult: true);
 
       for (final item in items) {
-        final updated = await transaction.rawUpdate(
-          '''
+        final updated = enforceLocalStock
+            ? await transaction.rawUpdate(
+                '''
           UPDATE inventario
           SET existencia = existencia - ?, updated_at = ?
           WHERE nivel_guid = ? AND existencia >= ?
           ''',
-          [item.quantity, timestamp, item.product.levelGuid, item.quantity],
-        );
+                [
+                  item.quantity,
+                  timestamp,
+                  item.product.levelGuid,
+                  item.quantity,
+                ],
+              )
+            : await transaction.rawUpdate(
+                '''
+          UPDATE inventario
+          SET existencia = MAX(existencia - ?, 0), updated_at = ?
+          WHERE nivel_guid = ?
+          ''',
+                [item.quantity, timestamp, item.product.levelGuid],
+              );
         if (updated != 1) {
           throw SalesLocalException(
             'La existencia de ${item.product.displayName} ya no es suficiente.',

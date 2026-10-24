@@ -19,6 +19,7 @@ class BranchInfo {
   final String cfdiSeries;
   final double salesCommission;
   final double inventoryValue;
+  final bool cloudInventory;
   final String guid;
   final LicenseInfo license;
 
@@ -41,6 +42,7 @@ class BranchInfo {
     required this.cfdiSeries,
     required this.salesCommission,
     required this.inventoryValue,
+    required this.cloudInventory,
     required this.guid,
     required this.license,
   });

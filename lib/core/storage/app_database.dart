@@ -81,6 +81,7 @@ class AppDatabase {
         serie_cfdi TEXT,
         comision_ventas REAL NOT NULL DEFAULT 0,
         valor_inventario REAL NOT NULL DEFAULT 0,
+        inventario_cloud INTEGER NOT NULL DEFAULT 0,
         guid TEXT NOT NULL UNIQUE,
         signature TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -339,9 +340,20 @@ class AppDatabase {
   }
 
   Future<void> _ensureCurrentSchema(Database database) async {
+    await _ensureBranchInventoryMode(database);
     await _ensureSalePaymentColumns(database);
     await _createCollectionsTables(database);
     await _createLoansTables(database);
+  }
+
+  Future<void> _ensureBranchInventoryMode(DatabaseExecutor database) async {
+    final columns = await database.rawQuery('PRAGMA table_info(sucursales)');
+    final names = columns.map((row) => row['name']?.toString()).toSet();
+    if (!names.contains('inventario_cloud')) {
+      await database.execute(
+        'ALTER TABLE sucursales ADD COLUMN inventario_cloud INTEGER NOT NULL DEFAULT 0',
+      );
+    }
   }
 
   Future<void> _ensureSalePaymentColumns(DatabaseExecutor database) async {

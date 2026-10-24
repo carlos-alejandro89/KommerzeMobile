@@ -14,6 +14,12 @@ class ApiConstants {
   static const clientsListPath = 'clientes/listar';
   static const usersPath = 'catalogos/usuarios/get';
   static const salesRegisterPath = 'pedidos/registrar';
+  static const branchOperationStartPath = 'sucursales/operaciones/iniciar';
+  static const branchOperationFinishPath = 'sucursales/operaciones/finalizar';
+  static const cashierShiftStartPath = 'sucursales/cajeros/turno/iniciar';
+  static const cashierShiftFinishPath = 'sucursales/cajeros/turno/finalizar';
+  static String inventoryValidationPath(String branchGuid) =>
+      'sucursales/inventario/validar/$branchGuid';
   static const collectionsSyncPath = 'cobranza/sincronizar';
   static String collectionsByBranchPath(String branchGuid) =>
       'cobranza/sucursal/$branchGuid';

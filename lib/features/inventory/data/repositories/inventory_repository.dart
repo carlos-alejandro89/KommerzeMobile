@@ -41,6 +41,21 @@ class InventoryRepository {
     return items;
   }
 
+  Future<Map<String, double>> validateCloudAvailability(
+    Map<String, double> quantities,
+  ) async {
+    if (quantities.isEmpty) return const {};
+    return api.validateAvailability(await _branchGuid(), quantities);
+  }
+
+  Future<double> getCloudStock(String levelGuid) async {
+    final result = await validateCloudAvailability({levelGuid: 0});
+    return result[levelGuid] ?? 0;
+  }
+
+  Future<bool> usesCloudInventory() async =>
+      api.usesCloudInventory(await _branchGuid());
+
   Future<String> _branchGuid() async {
     final guid = await local.getBranchGuid();
     if (guid == null || guid.isEmpty) {

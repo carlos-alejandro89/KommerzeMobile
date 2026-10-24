@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
 import 'package:kommerze_mobile/core/constants/app_constants.dart';
+import 'package:kommerze_mobile/core/inventory/inventory_source_controller.dart';
 import 'package:kommerze_mobile/core/widgets/app_header.dart';
 import 'package:kommerze_mobile/core/widgets/product_image.dart';
 import 'package:kommerze_mobile/features/checkout/presentation/controllers/checkout_controller.dart';
 import 'package:kommerze_mobile/features/clients/data/repositories/clients_repository.dart';
 import 'package:kommerze_mobile/features/inventory/data/datasources/inventory_local_data_source.dart';
 import 'package:kommerze_mobile/features/inventory/domain/entities/inventory_item.dart';
+import 'package:kommerze_mobile/features/inventory/data/repositories/inventory_repository.dart';
 import 'package:kommerze_mobile/features/sales/domain/entities/sale_cart_item.dart';
 import 'package:kommerze_mobile/features/sales/presentation/controllers/sales_controller.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -55,17 +57,36 @@ class _PdaSalesScreenState extends ConsumerState<PdaSalesScreen> {
       return;
     }
 
-    final added = ref.read(saleCartControllerProvider.notifier).add(product, 1);
-    if (!added) {
+    final added = await _addProduct(product);
+    if (!added || !mounted) return;
+
+    setState(() => _lastScannedLevelGuid = product.levelGuid);
+    _scrollToProduct(product.levelGuid);
+  }
+
+  Future<bool> _addProduct(InventoryItem product) async {
+    var currentProduct = product;
+    if (ref.read(inventorySourceControllerProvider) == InventorySource.cloud) {
+      try {
+        final stock = await ref
+            .read(inventoryRepositoryProvider)
+            .getCloudStock(product.levelGuid);
+        currentProduct = product.copyWith(stock: stock);
+      } catch (error) {
+        if (mounted) _message(error.toString(), error: true);
+        return false;
+      }
+    }
+    final added = ref
+        .read(saleCartControllerProvider.notifier)
+        .add(currentProduct, 1);
+    if (!added && mounted) {
       _message(
         'No hay existencia suficiente de ${product.displayName}.',
         error: true,
       );
-      return;
     }
-
-    setState(() => _lastScannedLevelGuid = product.levelGuid);
-    _scrollToProduct(product.levelGuid);
+    return added;
   }
 
   void _scrollToProduct(String levelGuid) {
@@ -156,17 +177,10 @@ class _PdaSalesScreenState extends ConsumerState<PdaSalesScreen> {
       builder: (_) => const _ManualProductSearchSheet(),
     );
     if (product != null && mounted) {
-      final added = ref
-          .read(saleCartControllerProvider.notifier)
-          .add(product, 1);
-      if (added) {
+      final added = await _addProduct(product);
+      if (added && mounted) {
         setState(() => _lastScannedLevelGuid = product.levelGuid);
         _scrollToProduct(product.levelGuid);
-      } else {
-        _message(
-          'No hay existencia suficiente de ${product.displayName}.',
-          error: true,
-        );
       }
     }
     _focusNode.requestFocus();
@@ -237,17 +251,7 @@ class _PdaSalesScreenState extends ConsumerState<PdaSalesScreen> {
                               item.product.levelGuid,
                               item.quantity - 1,
                             ),
-                        onIncrease: () {
-                          final added = ref
-                              .read(saleCartControllerProvider.notifier)
-                              .add(item.product, 1);
-                          if (!added) {
-                            _message(
-                              'No hay existencia suficiente de ${item.product.displayName}.',
-                              error: true,
-                            );
-                          }
-                        },
+                        onIncrease: () => _addProduct(item.product),
                         onRemove: () => ref
                             .read(saleCartControllerProvider.notifier)
                             .remove(item.product.levelGuid),
@@ -379,7 +383,10 @@ class _ManualProductSearchSheetState
                     separatorBuilder: (_, _) => const SizedBox(height: 8),
                     itemBuilder: (_, index) {
                       final product = _items[index];
-                      final available = product.stock > 0;
+                      final cloudInventory =
+                          ref.watch(inventorySourceControllerProvider) ==
+                          InventorySource.cloud;
+                      final available = cloudInventory || product.stock > 0;
                       return ListTile(
                         onTap: available
                             ? () => Navigator.pop(context, product)
@@ -427,7 +434,9 @@ class _ManualProductSearchSheetState
                           ),
                         ),
                         subtitle: Text(
-                          '${product.code}  ·  Existencia ${product.stock.toStringAsFixed(0)}',
+                          cloudInventory
+                              ? '${product.code}  ·  Existencia en Cloud'
+                              : '${product.code}  ·  Existencia ${product.stock.toStringAsFixed(0)}',
                         ),
                         trailing: Column(
                           mainAxisSize: MainAxisSize.min,

@@ -6,9 +6,11 @@ import 'package:go_router/go_router.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
 import 'package:kommerze_mobile/core/constants/app_constants.dart';
 import 'package:kommerze_mobile/core/layout/app_breakpoints.dart';
+import 'package:kommerze_mobile/core/inventory/inventory_source_controller.dart';
 import 'package:kommerze_mobile/core/widgets/app_header.dart';
 import 'package:kommerze_mobile/core/widgets/product_image.dart';
 import 'package:kommerze_mobile/features/inventory/domain/entities/inventory_item.dart';
+import 'package:kommerze_mobile/features/inventory/data/repositories/inventory_repository.dart';
 import 'package:kommerze_mobile/features/purchases/presentation/controllers/purchases_controller.dart';
 import 'package:kommerze_mobile/features/checkout/presentation/controllers/checkout_controller.dart';
 import 'package:kommerze_mobile/features/clients/data/repositories/clients_repository.dart';
@@ -114,17 +116,39 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
   }
 
   Future<bool> _selectProduct(InventoryItem product) async {
+    var currentProduct = product;
+    if (!widget.purchaseMode &&
+        ref.read(inventorySourceControllerProvider) == InventorySource.cloud) {
+      try {
+        final stock = await ref
+            .read(inventoryRepositoryProvider)
+            .getCloudStock(product.levelGuid);
+        currentProduct = product.copyWith(stock: stock);
+      } catch (error) {
+        if (!mounted) return false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString()),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return false;
+      }
+    }
     final quantity = await ProductSelectionSheet.show(
       context,
-      product,
+      currentProduct,
       purchaseMode: widget.purchaseMode,
     );
     if (quantity == null || !mounted) return false;
     final added = widget.purchaseMode
         ? ref
               .read(purchaseCartControllerProvider.notifier)
-              .add(product, quantity)
-        : ref.read(saleCartControllerProvider.notifier).add(product, quantity);
+              .add(currentProduct, quantity)
+        : ref
+              .read(saleCartControllerProvider.notifier)
+              .add(currentProduct, quantity);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -151,6 +175,8 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
         ? ref.watch(purchaseCartTotalProvider)
         : ref.watch(saleCartTotalProvider);
     final tabletLandscape = AppBreakpoints.isTabletLandscape(context);
+    final cloudInventory =
+        ref.watch(inventorySourceControllerProvider) == InventorySource.cloud;
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
       body: Column(
@@ -275,6 +301,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                                       : _ProductCard(
                                           product: state.items[index],
                                           purchaseMode: widget.purchaseMode,
+                                          cloudInventory: cloudInventory,
                                           onTap: () => _selectProduct(
                                             state.items[index],
                                           ),
@@ -289,7 +316,10 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   const VerticalDivider(width: 1),
                   SizedBox(
                     width: 390,
-                    child: _TabletCartPanel(purchaseMode: widget.purchaseMode),
+                    child: _TabletCartPanel(
+                      purchaseMode: widget.purchaseMode,
+                      cloudInventory: cloudInventory,
+                    ),
                   ),
                 ],
               ],
@@ -317,7 +347,12 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
 
 class _TabletCartPanel extends ConsumerWidget {
   final bool purchaseMode;
-  const _TabletCartPanel({required this.purchaseMode});
+  final bool cloudInventory;
+
+  const _TabletCartPanel({
+    required this.purchaseMode,
+    required this.cloudInventory,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -560,16 +595,19 @@ class _EmptyTabletCart extends StatelessWidget {
 class _ProductCard extends StatelessWidget {
   final InventoryItem product;
   final bool purchaseMode;
+  final bool cloudInventory;
   final VoidCallback onTap;
+
   const _ProductCard({
     required this.product,
     required this.purchaseMode,
+    required this.cloudInventory,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final available = purchaseMode || product.stock > 0;
+    final available = purchaseMode || cloudInventory || product.stock > 0;
     return Card(
       margin: const EdgeInsets.only(bottom: 9),
       elevation: 0,
@@ -669,7 +707,16 @@ class _ProductCard extends StatelessWidget {
                     'Existencia',
                     style: TextStyle(color: AppColors.textGrey, fontSize: 10.5),
                   ),
-                  if (available)
+                  if (cloudInventory && !purchaseMode)
+                    const Text(
+                      'Cloud',
+                      style: TextStyle(
+                        color: AppColors.primaryBlue,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    )
+                  else if (available)
                     Text(
                       _number(product.stock),
                       style: const TextStyle(
