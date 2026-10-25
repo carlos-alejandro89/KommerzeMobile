@@ -344,8 +344,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               item.code.toLowerCase().contains(query) ||
               item.displayName.toLowerCase().contains(query) ||
               item.barcode.toLowerCase().contains(query) ||
-              item.lineName.toLowerCase().contains(query) ||
-              item.brandName.toLowerCase().contains(query);
+              item.packageLevel.toLowerCase().contains(query) ||
+              item.lineName.toLowerCase().contains(query);
           final matchesStock =
               _stockFilters.isEmpty ||
               (_stockFilters.contains(_StockFilter.inStock) &&
@@ -1091,7 +1091,19 @@ class _ErrorState extends StatelessWidget {
         children: [
           const Icon(Icons.cloud_off_rounded, color: AppColors.error, size: 42),
           const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center),
+          const Text(
+            'Sin conexión',
+            style: TextStyle(
+              color: AppColors.navy,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'No fue posible recuperar el inventario desde Cloud.\n$message',
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 16),
           OutlinedButton.icon(
             onPressed: onRetry,

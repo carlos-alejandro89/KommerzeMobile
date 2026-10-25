@@ -31,6 +31,16 @@ class InventoryLocalDataSource {
     return rows.map(InventoryItem.fromMap).toList(growable: false);
   }
 
+  Future<List<InventoryItem>> getVisibleItems() async {
+    final db = await database.instance;
+    final rows = await db.query(
+      'inventario',
+      where: 'is_active = 1 OR existencia > 0',
+      orderBy: 'descripcion COLLATE NOCASE, codigo COLLATE NOCASE',
+    );
+    return rows.map(InventoryItem.fromMap).toList(growable: false);
+  }
+
   Future<List<InventoryItem>> searchItems({
     String query = '',
     int limit = 30,
@@ -38,13 +48,15 @@ class InventoryLocalDataSource {
   }) async {
     final db = await database.instance;
     final normalized = query.trim();
+    final search = '%$normalized%';
     final rows = await db.query(
       'inventario',
       where: normalized.isEmpty
-          ? null
-          : '''codigo LIKE ? OR codigo_barras LIKE ? OR descripcion LIKE ?
-               OR nombre_linea LIKE ? OR nombre_marca LIKE ?''',
-      whereArgs: normalized.isEmpty ? null : List.filled(5, '%$normalized%'),
+          ? '(is_active = 1 OR existencia > 0)'
+          : '''(is_active = 1 OR existencia > 0) AND
+               (codigo LIKE ? OR codigo_barras LIKE ? OR descripcion LIKE ?
+                OR nivel_empaque LIKE ? OR nombre_linea LIKE ?)''',
+      whereArgs: normalized.isEmpty ? null : List.filled(5, search),
       orderBy: 'descripcion COLLATE NOCASE, codigo COLLATE NOCASE',
       limit: limit,
       offset: offset,
@@ -58,7 +70,8 @@ class InventoryLocalDataSource {
     if (value.isEmpty) return null;
     final rows = await db.query(
       'inventario',
-      where: 'codigo_barras = ? OR codigo = ?',
+      where:
+          '(is_active = 1 OR existencia > 0) AND (codigo_barras = ? OR codigo = ?)',
       whereArgs: [value, value],
       limit: 1,
     );
@@ -90,8 +103,8 @@ class InventoryLocalDataSource {
             nivel_guid, producto_guid, empaque_guid, codigo, descripcion,
             nivel_empaque, codigo_barras, img_referencia, precio_compra, precio_venta,
             porcentaje_descuento, existencia, nombre_linea, nombre_marca,
-            updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+            is_active, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
           ON CONFLICT(nivel_guid) DO UPDATE SET
             producto_guid = excluded.producto_guid,
             empaque_guid = excluded.empaque_guid,
@@ -99,12 +112,16 @@ class InventoryLocalDataSource {
             descripcion = excluded.descripcion,
             nivel_empaque = excluded.nivel_empaque,
             codigo_barras = excluded.codigo_barras,
-            img_referencia = excluded.img_referencia,
+            img_referencia = CASE
+              WHEN excluded.img_referencia <> '' THEN excluded.img_referencia
+              ELSE inventario.img_referencia
+            END,
             precio_compra = excluded.precio_compra,
             precio_venta = excluded.precio_venta,
             porcentaje_descuento = excluded.porcentaje_descuento,
             nombre_linea = excluded.nombre_linea,
             nombre_marca = excluded.nombre_marca,
+            is_active = excluded.is_active,
             updated_at = excluded.updated_at
         ''', _values(item));
       }
@@ -123,11 +140,15 @@ class InventoryLocalDataSource {
             nivel_guid, producto_guid, empaque_guid, codigo, descripcion,
             nivel_empaque, codigo_barras, img_referencia, precio_compra, precio_venta,
             porcentaje_descuento, existencia, nombre_linea, nombre_marca,
-            updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            is_active, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(nivel_guid) DO UPDATE SET
             existencia = excluded.existencia,
-            img_referencia = excluded.img_referencia,
+            img_referencia = CASE
+              WHEN excluded.img_referencia <> '' THEN excluded.img_referencia
+              ELSE inventario.img_referencia
+            END,
+            is_active = excluded.is_active,
             updated_at = excluded.updated_at
         ''',
           [..._values(item, includeStock: true)],
@@ -153,6 +174,7 @@ class InventoryLocalDataSource {
       'existencia': stock,
       'nombre_linea': item.lineName,
       'nombre_marca': item.brandName,
+      'is_active': item.isActive ? 1 : 0,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
   }
@@ -173,6 +195,7 @@ class InventoryLocalDataSource {
       if (includeStock) item.stock,
       item.lineName,
       item.brandName,
+      item.isActive ? 1 : 0,
       DateTime.now().toUtc().toIso8601String(),
     ];
   }

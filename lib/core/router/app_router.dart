@@ -19,6 +19,7 @@ import 'package:kommerze_mobile/features/clients/domain/entities/client.dart';
 import 'package:kommerze_mobile/features/splash/presentation/screens/splash_screen.dart';
 import 'package:kommerze_mobile/features/sales/presentation/screens/sales_entry_screen.dart';
 import 'package:kommerze_mobile/features/checkout/presentation/screens/checkout_screen.dart';
+import 'package:kommerze_mobile/features/checkout/presentation/screens/sale_completed_screen.dart';
 import 'package:kommerze_mobile/features/checkout/presentation/screens/client_selection_screen.dart';
 import 'package:kommerze_mobile/features/purchases/presentation/screens/purchases_screen.dart';
 import 'package:kommerze_mobile/features/sync/presentation/screens/catalog_sync_screen.dart';
@@ -151,6 +152,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppConstants.checkoutScreenRoute,
         builder: (_, _) => const CheckoutScreen(),
+      ),
+      GoRoute(
+        path: AppConstants.saleCompletedScreenRoute,
+        builder: (_, state) =>
+            SaleCompletedScreen(args: state.extra! as SaleCompletedArgs),
       ),
       GoRoute(
         path: AppConstants.checkoutClientScreenRoute,

@@ -9,15 +9,21 @@ class InventoryController extends AsyncNotifier<List<InventoryItem>> {
   @override
   Future<List<InventoryItem>> build() async {
     final repository = ref.read(inventoryRepositoryProvider);
+    var cloud =
+        ref.read(inventorySourceControllerProvider) == InventorySource.cloud;
     try {
-      final cloud = await repository.usesCloudInventory();
+      cloud = await repository.usesCloudInventory();
       await ref
           .read(inventorySourceControllerProvider.notifier)
           .save(cloud ? InventorySource.cloud : InventorySource.local);
     } catch (_) {
-      // Conserva el último modo conocido cuando Cloud no está disponible.
+      if (cloud) rethrow;
     }
-    return repository.load();
+
+    // En modo Cloud la pantalla nunca utiliza existencias locales antiguas.
+    // La recuperación también actualiza la copia SQLite usada por el resto
+    // de los módulos del dispositivo.
+    return cloud ? repository.recoverInventory() : repository.load();
   }
 
   Future<bool> syncPrices() =>

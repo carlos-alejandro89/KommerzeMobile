@@ -19,6 +19,7 @@ class AppConstants {
   static const salesScreenRoute = '/sales';
   static const purchasesScreenRoute = '/purchases';
   static const checkoutScreenRoute = '/sales/checkout';
+  static const saleCompletedScreenRoute = '/sales/completed';
   static const checkoutClientScreenRoute = '/sales/checkout/client';
   static const catalogSyncScreenRoute = '/catalog-sync';
   static const salesHistoryScreenRoute = '/sales-history';

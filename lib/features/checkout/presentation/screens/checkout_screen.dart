@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kommerze_mobile/core/constants/app_colors.dart';
 import 'package:kommerze_mobile/core/constants/app_constants.dart';
+import 'package:kommerze_mobile/core/device/device_type_controller.dart';
 import 'package:kommerze_mobile/core/widgets/app_header.dart';
 import 'package:kommerze_mobile/features/checkout/domain/entities/sale_payment.dart';
 import 'package:kommerze_mobile/features/checkout/presentation/controllers/checkout_controller.dart';
@@ -26,6 +27,7 @@ import 'package:kommerze_mobile/features/printer/presentation/controllers/printe
 import 'package:kommerze_mobile/core/storage/secure_storage_provider.dart';
 import 'package:kommerze_mobile/features/license/presentation/controllers/license_activation_controller.dart';
 import 'package:kommerze_mobile/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:kommerze_mobile/features/checkout/presentation/screens/sale_completed_screen.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -445,12 +447,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       }
     }
     if (!context.mounted) return;
-    await _showSaleCompletedDialog(
-      context,
-      synchronized: synchronized,
-      receipt: receipt,
-      automaticPrintError: automaticPrintError,
-    );
     ref.read(saleCartControllerProvider.notifier).clear();
     ref.read(checkoutControllerProvider.notifier).reset();
     ref.invalidate(recentSalesProvider);
@@ -458,6 +454,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     ref.invalidate(inventoryControllerProvider);
     ref.invalidate(salesCatalogControllerProvider);
     ref.invalidate(branchOperationControllerProvider);
+    if (!context.mounted) return;
+    if (ref.read(deviceTypeControllerProvider) == DeviceType.pda) {
+      context.push(
+        AppConstants.saleCompletedScreenRoute,
+        extra: SaleCompletedArgs(
+          receipt: receipt,
+          synchronized: synchronized,
+          automaticPrintError: automaticPrintError,
+        ),
+      );
+      return;
+    }
+    await _showSaleCompletedDialog(
+      context,
+      synchronized: synchronized,
+      receipt: receipt,
+      automaticPrintError: automaticPrintError,
+    );
     if (context.mounted) context.go(AppConstants.welcomeScreenRoute);
   }
 

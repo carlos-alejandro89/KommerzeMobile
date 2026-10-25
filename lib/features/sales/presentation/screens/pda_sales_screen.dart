@@ -200,6 +200,7 @@ class _PdaSalesScreenState extends ConsumerState<PdaSalesScreen> {
             title: 'Ventas',
             subtitle: 'Escanea artículos para agregarlos',
             showBackButton: true,
+            onBack: () => context.go(AppConstants.welcomeScreenRoute),
             actions: [
               IconButton(
                 tooltip: 'Vaciar carrito',

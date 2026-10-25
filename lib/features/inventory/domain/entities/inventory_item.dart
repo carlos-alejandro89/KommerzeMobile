@@ -13,6 +13,7 @@ class InventoryItem {
   final String levelGuid;
   final String productGuid;
   final String? packageGuid;
+  final bool isActive;
 
   const InventoryItem({
     required this.code,
@@ -29,6 +30,7 @@ class InventoryItem {
     required this.levelGuid,
     required this.productGuid,
     required this.packageGuid,
+    this.isActive = true,
   });
 
   String get displayName {
@@ -51,6 +53,7 @@ class InventoryItem {
     levelGuid: levelGuid,
     productGuid: productGuid,
     packageGuid: packageGuid,
+    isActive: isActive,
   );
 
   factory InventoryItem.fromMap(Map<String, Object?> map) {
@@ -69,6 +72,7 @@ class InventoryItem {
       levelGuid: map['nivel_guid']?.toString() ?? '',
       productGuid: map['producto_guid']?.toString() ?? '',
       packageGuid: map['empaque_guid']?.toString(),
+      isActive: (map['is_active'] as num?)?.toInt() != 0,
     );
   }
 

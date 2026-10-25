@@ -13,6 +13,8 @@ import 'package:kommerze_mobile/features/auth/domain/entities/usuario_entity.dar
 import 'package:kommerze_mobile/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:kommerze_mobile/features/license/domain/entities/license_details.dart';
 import 'package:kommerze_mobile/features/license/presentation/controllers/license_activation_controller.dart';
+import 'package:kommerze_mobile/features/inventory/data/repositories/inventory_repository.dart';
+import 'package:kommerze_mobile/features/inventory/presentation/controllers/inventory_controller.dart';
 import 'package:kommerze_mobile/features/profile/presentation/controllers/profile_photo_controller.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -144,6 +146,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               icon: Icons.inventory_2_outlined,
               label: 'Fuente de inventario',
               value: inventorySource.label,
+              onTap: () => _showInventorySourceSelector(inventorySource),
             ),
             _ProfileItem(
               icon: Icons.print_outlined,
@@ -269,6 +272,73 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
     if (selected != null) {
       await ref.read(deviceTypeControllerProvider.notifier).save(selected);
+    }
+  }
+
+  Future<void> _showInventorySourceSelector(InventorySource current) async {
+    final selected = await showModalBottomSheet<InventorySource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SafeArea(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Fuente de inventario',
+                style: TextStyle(
+                  color: AppColors.navy,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'La selección se aplicará a esta sucursal en Kommerze Cloud.',
+                style: TextStyle(color: AppColors.textGrey, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              _SalesModeOption(
+                title: InventorySource.local.label,
+                subtitle: 'La existencia se administra en este dispositivo.',
+                icon: Icons.phone_android_rounded,
+                selected: current == InventorySource.local,
+                onTap: () => Navigator.pop(context, InventorySource.local),
+              ),
+              const SizedBox(height: 10),
+              _SalesModeOption(
+                title: InventorySource.cloud.label,
+                subtitle: 'La existencia se consulta y actualiza en Cloud.',
+                icon: Icons.cloud_outlined,
+                selected: current == InventorySource.cloud,
+                onTap: () => Navigator.pop(context, InventorySource.cloud),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selected == null || selected == current) return;
+
+    try {
+      await ref
+          .read(inventoryRepositoryProvider)
+          .configureCloudInventory(selected == InventorySource.cloud);
+      await ref
+          .read(inventorySourceControllerProvider.notifier)
+          .save(selected);
+      ref.invalidate(inventoryControllerProvider);
+      if (mounted) {
+        _showMessage('Fuente de inventario actualizada en Kommerze Cloud.');
+      }
+    } catch (error) {
+      if (mounted) _showMessage(error.toString(), error: true);
     }
   }
 

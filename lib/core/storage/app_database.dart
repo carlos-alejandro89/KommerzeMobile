@@ -106,6 +106,7 @@ class AppDatabase {
         existencia REAL NOT NULL DEFAULT 0,
         nombre_linea TEXT NOT NULL DEFAULT 'SIN LINEA',
         nombre_marca TEXT NOT NULL DEFAULT 'SIN MARCA',
+        is_active INTEGER NOT NULL DEFAULT 1,
         updated_at TEXT NOT NULL
       )
     ''');
@@ -341,9 +342,20 @@ class AppDatabase {
 
   Future<void> _ensureCurrentSchema(Database database) async {
     await _ensureBranchInventoryMode(database);
+    await _ensureInventoryActiveColumn(database);
     await _ensureSalePaymentColumns(database);
     await _createCollectionsTables(database);
     await _createLoansTables(database);
+  }
+
+  Future<void> _ensureInventoryActiveColumn(DatabaseExecutor database) async {
+    final columns = await database.rawQuery('PRAGMA table_info(inventario)');
+    final names = columns.map((row) => row['name']?.toString()).toSet();
+    if (!names.contains('is_active')) {
+      await database.execute(
+        'ALTER TABLE inventario ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1',
+      );
+    }
   }
 
   Future<void> _ensureBranchInventoryMode(DatabaseExecutor database) async {

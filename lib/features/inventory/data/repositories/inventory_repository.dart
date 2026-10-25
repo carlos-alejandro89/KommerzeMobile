@@ -15,19 +15,19 @@ class InventoryRepository {
       final prices = await api.getPrices(guid);
       await local.saveInitialPrices(prices);
     }
-    return local.getItems();
+    return local.getVisibleItems();
   }
 
   Future<List<InventoryItem>> syncPrices() async {
     final prices = await api.getPrices(await _branchGuid());
     await local.syncPrices(prices);
-    return local.getItems();
+    return local.getVisibleItems();
   }
 
   Future<List<InventoryItem>> recoverInventory() async {
     final backup = await api.recoverInventory(await _branchGuid());
     await local.restoreStock(backup);
-    return local.getItems();
+    return local.getVisibleItems();
   }
 
   Future<List<InventoryItem>> backupInventory() async {
@@ -55,6 +55,9 @@ class InventoryRepository {
 
   Future<bool> usesCloudInventory() async =>
       api.usesCloudInventory(await _branchGuid());
+
+  Future<void> configureCloudInventory(bool enabled) async =>
+      api.configureCloudInventory(await _branchGuid(), enabled: enabled);
 
   Future<String> _branchGuid() async {
     final guid = await local.getBranchGuid();

@@ -114,6 +114,37 @@ class InventoryApi {
     }
   }
 
+  Future<void> configureCloudInventory(
+    String branchGuid, {
+    required bool enabled,
+  }) async {
+    try {
+      final response = await dio.put<dynamic>(
+        'sucursales/inventario/configuracion/$branchGuid',
+        data: {'inventarioCloud': enabled},
+      );
+      final body = response.data;
+      if (body is! Map || body['success'] != true) {
+        throw InventoryApiException(
+          body is Map
+              ? (body['mensaje'] ?? body['message'])?.toString() ??
+                    'No fue posible actualizar el modo de inventario.'
+              : 'El servidor devolvió una respuesta inválida.',
+        );
+      }
+    } on InventoryApiException {
+      rethrow;
+    } on DioException catch (error) {
+      final body = error.response?.data;
+      final message = body is Map
+          ? (body['mensaje'] ?? body['message'])?.toString()
+          : null;
+      throw InventoryApiException(
+        message ?? 'No fue posible actualizar el modo de inventario.',
+      );
+    }
+  }
+
   Future<List<InventoryItem>> _request(
     String path, {
     required bool backup,

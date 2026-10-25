@@ -1177,13 +1177,21 @@ class _OperationError extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            color: AppColors.error,
-            size: 40,
-          ),
+          const Icon(Icons.cloud_off_rounded, color: AppColors.error, size: 42),
           const SizedBox(height: 10),
-          Text(message, textAlign: TextAlign.center),
+          const Text(
+            'Sin conexión',
+            style: TextStyle(
+              color: AppColors.navy,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'No fue posible recuperar el inventario desde Cloud.\n$message',
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 12),
           OutlinedButton(onPressed: onRetry, child: const Text('Reintentar')),
         ],

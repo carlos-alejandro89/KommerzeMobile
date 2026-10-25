@@ -45,6 +45,7 @@ class InventoryDto {
       levelGuid: _text(json['nivelGuid']),
       productGuid: _text(json['productoGuid']),
       packageGuid: json['empaqueGuid']?.toString(),
+      isActive: _active(json),
     );
   }
 
@@ -55,6 +56,12 @@ class InventoryDto {
 
   static double _decimal(Object? value) =>
       value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+
+  static bool _active(Map<String, dynamic> json) {
+    final value = json['isActive'] ?? json['IsActive'] ?? json['is_active'];
+    if (value == null) return true;
+    return value == true || value == 1 || value.toString() == '1';
+  }
 
   static double _percentage(Object? value) {
     final percentage = _decimal(value);
